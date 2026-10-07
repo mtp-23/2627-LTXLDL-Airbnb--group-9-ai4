@@ -216,3 +216,46 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ==========================================
+# Inside Airbnb Project
+# ==========================================
+
+# Raw Airbnb data - DO NOT COMMIT
+data/raw/
+
+# Environment and secrets
+.env
+.envrc
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+tempCodeRunnerFile.py
+
+# Ruff
+.ruff_cache/
