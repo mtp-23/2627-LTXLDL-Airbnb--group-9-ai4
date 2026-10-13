@@ -1,0 +1,19 @@
+city: Santiago
+country: Chile
+currency: CLP
+source: Inside Airbnb
+data_root: chile/rm/santiago
+snapshots: 
+  - "2025-09-27" 
+  - "2025-12-29" 
+  - "2026-03-30" 
+  - "2026-06-29"
+
+download:
+  URL_CSV: https://data.insideairbnb.com/{data_root}/{date}/data/{f_type}.csv.gz
+  URL_GEOJSON: https://data.insideairbnb.com/{data_root}/{date}/visualisations/neighbourhoods.geojson
+  f_type:
+    - "listings"
+    - "calendar"
+    - "reviews"
+raw_dir: data/raw
