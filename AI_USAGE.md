@@ -1,0 +1,1 @@
+#Khai báo AI đầy đủ
