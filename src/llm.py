@@ -74,7 +74,7 @@ async def process_batch_with_gemini(client: genai.Client, batch_df: pd.DataFrame
 
     async with limiter:
         response = await client.aio.models.generate_content(
-            model='gemini-3.5-flash',
+            model='model='gemini-3.5-flash-lite',
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -137,11 +137,11 @@ async def run_llm_pipeline(reviews_path: str, cache_path: str, sample_size: int 
             # Tuỳ chọn: Có thể break để dừng chương trình hoặc continue để bỏ qua batch lỗi
 def estimate_total_cost(total_reviews: int, avg_input_chars: int = 300) -> dict:
     """
-    Ước tính chi phí chạy toàn bộ tập review bằng Gemini 1.5 Flash.
+    Ước tính chi phí chạy toàn bộ tập review bằng Gemini 3.5 Flash Lite.
     Giả định: 1 token ~ 4 characters.
     Giá tham khảo (Google AI Studio - Tier Pay-as-you-go):
-    - Input: $0.075 / 1 triệu token
-    - Output: $0.30 / 1 triệu token
+    - Input: $0.30 / 1 triệu token
+    - Output: $2.50 / 1 triệu token
     """
     # 1. Ước tính số token cho mỗi review
     prompt_tokens = 150 # System prompt + định dạng JSON
@@ -154,8 +154,8 @@ def estimate_total_cost(total_reviews: int, avg_input_chars: int = 300) -> dict:
     total_output_tokens = total_reviews * output_tokens_per_review
     
     # 3. Tính chi phí (USD)
-    input_cost = (total_input_tokens / 1_000_000) * 0.075
-    output_cost = (total_output_tokens / 1_000_000) * 0.30
+    input_cost = (total_input_tokens / 1_000_000) * 0.30  # Giá đầu vào mới
+    output_cost = (total_output_tokens / 1_000_000) * 2.50 # Giá đầu ra mới
     total_cost = input_cost + output_cost
     
     return {
