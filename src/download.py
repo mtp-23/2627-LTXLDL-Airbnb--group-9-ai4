@@ -173,7 +173,7 @@ def main() -> int:
           f"Không tìm thấy: {stats['missing']} | Lỗi: {stats['failed']}")
     if stats["missing"]:
         print("Gợi ý: kiểm tra lại ngày mốc trên https://insideairbnb.com/get-the-data/")
-    return 1 if stats["failed"] else 0
+    return 1 if stats["failed"] else 0 
 
 
 if __name__ == "__main__":
