@@ -259,3 +259,6 @@ tempCodeRunnerFile.py
 
 # Ruff
 .ruff_cache/
+
+#Test files
+test/
