@@ -1,7 +1,7 @@
-
 import argparse
 import csv
 import gzip
+import json
 import sys
 import time
 import zlib
@@ -50,7 +50,7 @@ def load_config(path: Path) -> dict:
     for key in ("data_root", "snapshots", "download", "raw_dir"):
         if key not in cfg:
             sys.exit(f"Thiếu khóa '{key}' trong {path}")
-    for key in ("URL_CSV", "f_type"):
+    for key in ("URL_CSV", "URL_GEOJSON", "f_type"):
         if key not in cfg["download"]:
             sys.exit(f"Thiếu khóa 'download.{key}' trong {path}")
 
@@ -71,12 +71,17 @@ def load_config(path: Path) -> dict:
         sys.exit("URL_CSV phải dùng HTTPS và host data.insideairbnb.com.")
     if parsed_url.path != "/{data_root}/{date}/data/{f_type}.csv.gz":
         sys.exit("URL_CSV phải theo mẫu .../{data_root}/{date}/data/{f_type}.csv.gz.")
+    geojson_url = urlsplit(cfg["download"]["URL_GEOJSON"])
+    if geojson_url.scheme != "https" or geojson_url.hostname != "data.insideairbnb.com":
+        sys.exit("URL_GEOJSON phải dùng HTTPS và host data.insideairbnb.com.")
+    if geojson_url.path != "/{data_root}/{date}/visualisations/neighbourhoods.geojson":
+        sys.exit("URL_GEOJSON phải theo mẫu .../{data_root}/{date}/visualisations/neighbourhoods.geojson.")
     return cfg
 
 
 # ----------------------------- Tạo danh sách tải -----------------------------
 def build_jobs(cfg: dict, out_root: Path):
-    """Tạo ba tác vụ CSV cho mỗi mốc."""
+    """Tạo các tác vụ CSV và GeoJSON cho mỗi mốc."""
     dl = cfg["download"]
     data_root = cfg["data_root"].strip("/")
     jobs = []
@@ -88,6 +93,9 @@ def build_jobs(cfg: dict, out_root: Path):
         for f_type in FILE_KEYS:
             url = dl["URL_CSV"].format(data_root=data_root, date=date, f_type=f_type)
             jobs.append((url, folder / f"{f_type}.csv.gz"))
+
+        geojson_url = dl["URL_GEOJSON"].format(data_root=data_root, date=date)
+        jobs.append((geojson_url, folder / "neighbourhoods.geojson"))
 
     return jobs
 
@@ -110,12 +118,31 @@ def validate_csv_gz(path: Path, file_type: str) -> str | None:
     return None
 
 
+def validate_geojson(path: Path) -> str | None:
+    """Trả về lý do không hợp lệ, hoặc None nếu là JSON GeoJSON không rỗng."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            document = json.load(f)
+    except (OSError, UnicodeError, json.JSONDecodeError) as e:
+        return f"không đọc được GeoJSON ({e})"
+
+    if not isinstance(document, dict):
+        return "nội dung GeoJSON phải là một object JSON"
+    if document.get("type") != "FeatureCollection":
+        return "GeoJSON không có type FeatureCollection"
+    if not isinstance(document.get("features"), list):
+        return "GeoJSON không có danh sách features"
+    return None
+
+
 # ----------------------------- Tải 1 tệp -----------------------------
-def download_file(url: str, dest: Path, file_type: str, force: bool = False) -> str:
+def download_file(url: str, dest: Path, file_type: str | None = None,
+                  force: bool = False) -> str:
     """Trả về 'ok' | 'skipped' | 'missing' | 'failed'."""
     if dest.exists() and not force:
         if dest.stat().st_size > 0:
-            invalid_reason = validate_csv_gz(dest, file_type)
+            invalid_reason = (validate_csv_gz(dest, file_type)
+                              if file_type else validate_geojson(dest))
             if invalid_reason is None:
                 print(f"  [bỏ qua] tệp hợp lệ đã có: {dest}")
                 return "skipped"
@@ -145,7 +172,8 @@ def download_file(url: str, dest: Path, file_type: str, force: bool = False) -> 
 
             if tmp.stat().st_size == 0:
                 raise OSError("máy chủ trả về tệp rỗng")
-            invalid_reason = validate_csv_gz(tmp, file_type)
+            invalid_reason = (validate_csv_gz(tmp, file_type)
+                              if file_type else validate_geojson(tmp))
             if invalid_reason is not None:
                 raise OSError(f"tệp tải về không hợp lệ: {invalid_reason}")
 
@@ -198,7 +226,8 @@ def main() -> int:
         if args.dry_run:
             print(f"  {url}\n    -> {dest}")
             continue
-        file_type = dest.name.removesuffix(".csv.gz")
+        file_type = (dest.name.removesuffix(".csv.gz")
+                     if dest.name.endswith(".csv.gz") else None)
         stats[download_file(url, dest, file_type, args.force)] += 1
 
     if args.dry_run:
