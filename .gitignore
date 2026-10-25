@@ -262,3 +262,6 @@ tempCodeRunnerFile.py
 
 #Test files
 test/
+
+#report
+data-errors-report.md
