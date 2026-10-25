@@ -266,3 +266,6 @@ test/
 #report
 data-errors-report.md
 src/p2.py
+src/download_samples.py
+src/data_report.py
+src/data_filter.py

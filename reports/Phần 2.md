@@ -17,8 +17,7 @@
 |**2026-06-29**|neighborhood_overview; host_since; host_response_time; host_response_rate; host_acceptance_rate; host_thumbnail_url; host_neighbourhood; host_total_listings_count; host_verifications; neighbourhood; neighbourhood_group_cleansed; calendar_updated; license; instant_bookable|
 
 ## 4. Các cột cần thiết bị thiếu và cách xử lý
-- Cột **price** dùng cho KPI bị trống.
-- Xử lý: thay mốc **2025-12-29** bằng mốc **2026-09-23**.
+- Không có cột dùng cho KPI bị thiếu.
 
 ## 5. Kết luận
-- Dữ liệu đủ điều kiện phân tích hay cần tải lại: mốc mới **2026-09-23** đủ để làm.
+- Dữ liệu đủ điều kiện phân tích.
