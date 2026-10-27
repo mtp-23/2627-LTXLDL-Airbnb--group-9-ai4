@@ -17,3 +17,6 @@ download:
     - "calendar"
     - "reviews"
 raw_dir: data/raw
+processed_dir: data/processed
+qa:
+llm:

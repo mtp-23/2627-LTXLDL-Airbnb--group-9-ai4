@@ -74,7 +74,7 @@ async def process_batch_with_gemini(client: genai.Client, batch_df: pd.DataFrame
 
     async with limiter:
         response = await client.aio.models.generate_content(
-            model='model='gemini-3.5-flash-lite',
+            model='gemini-3.5-flash-lite',
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -109,7 +109,7 @@ async def run_llm_pipeline(reviews_path: str, cache_path: str, sample_size: int 
     df['id'] = df['id'].astype(str)
     
     # Sample (lấy random state cố định để tái lập được)
-    sampled_df = df.sample(n=sample_size, random_state=42)
+    sampled_df = df.sample(n=min(sample_size, len(df)), random_state=42)
     
     # Lọc bỏ các dòng đã có trong cache
     pending_df = sampled_df[~sampled_df['id'].isin(processed_ids)]
