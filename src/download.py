@@ -23,25 +23,19 @@ FILE_KEYS = {
 }
 
 
-# ----------------------------- Đọc cấu hình -----------------------------
+# Đọc cấu hình 
 def find_config(arg: str | None) -> Path:
-    """Dùng --config nếu có; nếu không thì tìm file .yaml/.yml duy nhất trong configs/."""
     if arg:
-        p = Path(arg)
-        if not p.exists():
-            sys.exit(f"Không tìm thấy file cấu hình: {p}")
-        return p
+        if not Path(arg).exists():
+            sys.exit(f"Không tìm thấy file cấu hình: {Path(arg)}")
+        return Path(arg)
 
-    here = Path(__file__).resolve().parent
-    for root in (Path.cwd(), here, here.parent):
-        found = sorted(list((root / "configs").glob("*.yaml")) +
-                       list((root / "configs").glob("*.yml")))
-        if len(found) == 1:
-            return found[0]
-        if len(found) > 1:
-            names = ", ".join(f.name for f in found)
-            sys.exit(f"Có nhiều file cấu hình ({names}). Hãy chỉ rõ bằng --config <đường dẫn>.")
-    sys.exit("Không tìm thấy file yaml trong configs/. Hãy dùng --config <đường dẫn>.")
+    cf = Path(__file__).resolve().parent.parent
+    found = list((cf / "configs").glob("*.yaml"))
+
+    if not found:
+        sys.exit("Không tìm thấy .yaml")
+    return found[0]
 
 
 def load_config(path: Path) -> dict:
@@ -49,21 +43,21 @@ def load_config(path: Path) -> dict:
         cfg = yaml.safe_load(f)
     for key in ("data_root", "snapshots", "download", "raw_dir"):
         if key not in cfg:
-            sys.exit(f"Thiếu khóa '{key}' trong {path}")
+            sys.exit(f"Thiếu khóa '{key}' trong configs")
     for key in ("URL_CSV", "URL_GEOJSON", "f_type"):
         if key not in cfg["download"]:
-            sys.exit(f"Thiếu khóa 'download.{key}' trong {path}")
+            sys.exit(f"Thiếu khóa '{key}' trong configs")
 
     snapshots = cfg["snapshots"]
     if not isinstance(snapshots, list) or len(snapshots) != SNAPSHOT_COUNT:
-        sys.exit(f"Cần đúng {SNAPSHOT_COUNT} mốc trong 'snapshots' của {path}")
-    normalized_snapshots = [str(snapshot) for snapshot in snapshots]
+        sys.exit(f"Cần đúng {SNAPSHOT_COUNT} mốc trong 'snapshots' của configs")
+    normalized_snapshots = [str(date) for date in snapshots]
     if len(set(normalized_snapshots)) != SNAPSHOT_COUNT:
-        sys.exit(f"Các mốc trong 'snapshots' phải khác nhau trong {path}")
+        sys.exit(f"Các mốc trong 'snapshots' phải khác nhau trong configs")
 
     file_types = cfg["download"]["f_type"]
     if not isinstance(file_types, list) or set(file_types) != set(FILE_KEYS):
-        sys.exit("download.f_type phải gồm đúng listings, calendar và reviews.")
+        sys.exit("[download][f_type] phải bao gồm listings, calendar và reviews.")
 
     url_template = cfg["download"]["URL_CSV"]
     parsed_url = urlsplit(url_template)
@@ -79,9 +73,8 @@ def load_config(path: Path) -> dict:
     return cfg
 
 
-# ----------------------------- Tạo danh sách tải -----------------------------
+# Tạo danh sách tải
 def build_jobs(cfg: dict, out_root: Path):
-    """Tạo các tác vụ CSV và GeoJSON cho mỗi mốc."""
     dl = cfg["download"]
     data_root = cfg["data_root"].strip("/")
     jobs = []
@@ -135,7 +128,7 @@ def validate_geojson(path: Path) -> str | None:
     return None
 
 
-# ----------------------------- Tải 1 tệp -----------------------------
+# Tải 1 tệp 
 def download_file(url: str, dest: Path, file_type: str | None = None,
                   force: bool = False) -> str:
     """Trả về 'ok' | 'skipped' | 'missing' | 'failed'."""
@@ -144,7 +137,7 @@ def download_file(url: str, dest: Path, file_type: str | None = None,
             invalid_reason = (validate_csv_gz(dest, file_type)
                               if file_type else validate_geojson(dest))
             if invalid_reason is None:
-                print(f"  [bỏ qua] tệp hợp lệ đã có: {dest}")
+                print(f"Đã có tệp: {dest}")
                 return "skipped"
             print(f"  [không hợp lệ] {dest}: {invalid_reason}; sẽ tải lại")
 
@@ -191,7 +184,7 @@ def download_file(url: str, dest: Path, file_type: str | None = None,
     return "failed"
 
 
-# ----------------------------- Main -----------------------------
+# Main
 def main() -> int:
     ap = argparse.ArgumentParser(description="Tải dữ liệu Inside Airbnb theo file config YAML")
     ap.add_argument("--config", help="Đường dẫn file yaml (mặc định: tự tìm trong configs/)")
