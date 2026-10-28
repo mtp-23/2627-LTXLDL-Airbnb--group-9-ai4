@@ -7,13 +7,11 @@ import time
 import zlib
 from pathlib import Path
 from urllib.parse import urlsplit
-
 import requests
 import yaml
 
 MAX_RETRIES = 3
 TIMEOUT = 60  # giây
-CHUNK = 1024 * 1024  # 1 MB
 HEADERS = {"User-Agent": "Mozilla/5.0 (student-project; Inside Airbnb downloader)"}
 SNAPSHOT_COUNT = 4
 FILE_KEYS = {
@@ -21,7 +19,6 @@ FILE_KEYS = {
     "calendar": ("listing_id", "date"),
     "reviews": ("id",),
 }
-
 
 # Đọc cấu hình 
 def find_config(arg: str | None) -> Path:
@@ -36,7 +33,6 @@ def find_config(arg: str | None) -> Path:
     if not found:
         sys.exit("Không tìm thấy .yaml")
     return found[0]
-
 
 def load_config(path: Path) -> dict:
     with open(path, encoding="utf-8") as f:
@@ -72,7 +68,6 @@ def load_config(path: Path) -> dict:
         sys.exit("URL_GEOJSON phải theo mẫu .../{data_root}/{date}/visualisations/neighbourhoods.geojson.")
     return cfg
 
-
 # Tạo danh sách tải
 def build_jobs(cfg: dict, out_root: Path):
     dl = cfg["download"]
@@ -92,7 +87,6 @@ def build_jobs(cfg: dict, out_root: Path):
 
     return jobs
 
-
 def validate_csv(path: Path, file_type: str) -> str | None:
     try:
         with gzip.open(path, "rt", encoding="utf-8-sig", newline="") as f:
@@ -109,7 +103,6 @@ def validate_csv(path: Path, file_type: str) -> str | None:
         return f"thiếu cột khóa: {', '.join(missing)}"
     return None
 
-
 def validate_geojson(path: Path) -> str | None:
     try:
         with open(path, encoding="utf-8") as f:
@@ -125,7 +118,6 @@ def validate_geojson(path: Path) -> str | None:
         return "GeoJSON không có danh sách features"
     return None
 
-
 # Tải file
 def download_file(url: str, dest: Path, file_type: str | None = None, force: bool = False) -> str:
     if dest.exists() and not force:
@@ -133,10 +125,7 @@ def download_file(url: str, dest: Path, file_type: str | None = None, force: boo
             invalid_reason = (validate_csv(dest, file_type)
                               if file_type else validate_geojson(dest))
             if invalid_reason is None:
-                print(f"\nĐã có tệp: {dest}")
                 return "skipped"
-            print(f"\n{dest.name}: {invalid_reason}; sẽ tải lại")
-
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
 
@@ -144,20 +133,8 @@ def download_file(url: str, dest: Path, file_type: str | None = None, force: boo
         try:
             with requests.get(url, headers=HEADERS, stream=True, timeout=TIMEOUT) as r:
                 if r.status_code == 404:
-                    print(f"\n[404] không tồn tại: {url}")
                     return "missing"
                 r.raise_for_status()
-
-                total = int(r.headers.get("Content-Length", 0))
-                done = 0
-                with open(tmp, "wb") as f:
-                    for chunk in r.iter_content(CHUNK):
-                        f.write(chunk)
-                        done += len(chunk)
-                        if total:
-                            print(f"\r  {dest.name}: {done / 1e6:6.1f}/{total / 1e6:.1f} MB",
-                                  end="", flush=True)
-                print()
 
             if tmp.stat().st_size == 0:
                 raise OSError("máy chủ trả về tệp rỗng")
@@ -167,7 +144,6 @@ def download_file(url: str, dest: Path, file_type: str | None = None, force: boo
                 raise OSError(f"tệp tải về không hợp lệ: {invalid_reason}")
 
             tmp.replace(dest)  # chỉ đổi tên khi tải xong hoàn toàn
-            print(f"\n[done] {dest}")
             return "done"
 
         except (requests.RequestException, OSError) as e:
@@ -179,13 +155,11 @@ def download_file(url: str, dest: Path, file_type: str | None = None, force: boo
 
     return "failed"
 
-
 # Main
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Tải dữ liệu Inside Airbnb theo file config YAML")
-    ap.add_argument("--config", help="Đường dẫn yaml có dạng configs/*.yaml")
-    ap.add_argument("--force", action="store_true", help="Ghi đè tệp đã có")
-    ap.add_argument("--test", action="store_true", help="Chỉ in URL và nơi lưu, không tải")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--config")
+    ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
 
     cfg_path = find_config(args.config).resolve()
@@ -195,22 +169,10 @@ def main() -> int:
     jobs = build_jobs(cfg, out_root)
     stats = {"done": 0, "skipped": 0, "missing": 0, "failed": 0}
 
-    last_folder = None
     for url, dest in jobs:
-        if dest.parent != last_folder:
-            last_folder = dest.parent
-            print("===============")
-            print(f"Mốc: {dest.parent.name}")
-        if args.test:
-            print(f"\n{dest.name}\n   -> {dest}")
-            continue
         file_type = (dest.name.removesuffix(".csv.gz")
                      if dest.name.endswith(".csv.gz") else None)
         stats[download_file(url, dest, file_type, args.force)] += 1
-
-    if args.test:
-        print(f"\nTổng cộng {len(jobs)} tệp.")
-        return 0
 
     print("\nHoàn thành")
     print(f"\n  Tải mới: {stats['done']}\n  Đã có: {stats['skipped']}"
@@ -218,7 +180,6 @@ def main() -> int:
     if stats["missing"]:
         print("\nKiểm tra lại mốc")
     return 1 if stats["failed"] or stats["missing"] else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
