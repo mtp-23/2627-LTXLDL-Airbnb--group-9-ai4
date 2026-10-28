@@ -4,6 +4,72 @@ import numpy as np
 from pathlib import Path
 
 
+
+project_root = next(
+    (path for path in (Path.cwd(), *Path.cwd().parents)
+     if (path / "data" / "raw").is_dir()),
+    Path.cwd(),
+)
+raw_dir = project_root / "data" / "raw"
+output_dir = raw_dir / "processeds"
+output_dir.mkdir(parents=True, exist_ok=True)
+
+listing_columns = ["Lớp", "Nhóm", "Mã dữ liệu", "listing_id", "analysis_area", " "]
+review_columns = ["Lớp", "Nhóm", "Mã dữ liệu", "review_id", "listing_id", "Mẫu LLM", "Nhãn tay"]
+
+listing_defaults = {
+    "Lớp": "UET.DSE2049 4",
+    "Nhóm": "9",
+    "Mã dữ liệu": "DSE2049-C04-G09-santiago",
+}
+review_defaults = {
+    "Lớp": "UET.DSE2049 4",
+    "Nhóm": "9",
+    "Mã dữ liệu": "DSE2049-C04-G09-santiago",
+}
+
+
+def export_csv(source_path, output_path, columns, defaults, id_mapping):
+    source_columns = list(id_mapping.values())
+    source_data = pd.read_csv(
+        source_path,
+        usecols=source_columns,
+        dtype=str,
+        keep_default_na=False,
+    )
+
+    output_data = pd.DataFrame("", index=source_data.index, columns=columns)
+    for column, value in defaults.items():
+        output_data[column] = value
+    for output_column, source_column in id_mapping.items():
+        output_data[output_column] = source_data[source_column]
+
+    output_data.to_csv(output_path, index=False, encoding="utf-8-sig")
+    return len(output_data)
+
+
+for folder in sorted(path for path in raw_dir.iterdir() if path.is_dir() and path.name != "processeds"):
+    listing_count = export_csv(
+        folder / "listings.csv.gz",
+        output_dir / f"listing_{folder.name}.csv",
+        listing_columns,
+        listing_defaults,
+        {"listing_id": "id"},
+    )
+    review_count = export_csv(
+        folder / "reviews.csv.gz",
+        output_dir / f"review_{folder.name}.csv",
+        review_columns,
+        review_defaults,
+        {"review_id": "id", "listing_id": "listing_id"},
+    )
+    print(f"{folder.name}: listings={listing_count:,}, reviews={review_count:,}")
+    
+
+
+
+
+
 # rules: name - condition - reason - todo (ưu tiên gắn cờ)
 RULES = [
     # thiếu
