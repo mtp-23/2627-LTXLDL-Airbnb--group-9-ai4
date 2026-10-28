@@ -93,8 +93,7 @@ def build_jobs(cfg: dict, out_root: Path):
     return jobs
 
 
-def validate_csv_gz(path: Path, file_type: str) -> str | None:
-    """Trả về lý do không hợp lệ, hoặc None nếu có header chứa đủ cột khóa."""
+def validate_csv(path: Path, file_type: str) -> str | None:
     try:
         with gzip.open(path, "rt", encoding="utf-8-sig", newline="") as f:
             header = next(csv.reader(f), None)
@@ -112,7 +111,6 @@ def validate_csv_gz(path: Path, file_type: str) -> str | None:
 
 
 def validate_geojson(path: Path) -> str | None:
-    """Trả về lý do không hợp lệ, hoặc None nếu là JSON GeoJSON không rỗng."""
     try:
         with open(path, encoding="utf-8") as f:
             document = json.load(f)
@@ -120,7 +118,7 @@ def validate_geojson(path: Path) -> str | None:
         return f"không đọc được GeoJSON ({e})"
 
     if not isinstance(document, dict):
-        return "nội dung GeoJSON phải là một object JSON"
+        return "Nội dung GeoJSON phải là JSON"
     if document.get("type") != "FeatureCollection":
         return "GeoJSON không có type FeatureCollection"
     if not isinstance(document.get("features"), list):
@@ -128,18 +126,16 @@ def validate_geojson(path: Path) -> str | None:
     return None
 
 
-# Tải 1 tệp 
-def download_file(url: str, dest: Path, file_type: str | None = None,
-                  force: bool = False) -> str:
-    """Trả về 'ok' | 'skipped' | 'missing' | 'failed'."""
+# Tải file
+def download_file(url: str, dest: Path, file_type: str | None = None, force: bool = False) -> str:
     if dest.exists() and not force:
         if dest.stat().st_size > 0:
-            invalid_reason = (validate_csv_gz(dest, file_type)
+            invalid_reason = (validate_csv(dest, file_type)
                               if file_type else validate_geojson(dest))
             if invalid_reason is None:
-                print(f"Đã có tệp: {dest}")
+                print(f"\nĐã có tệp: {dest}")
                 return "skipped"
-            print(f"  [không hợp lệ] {dest}: {invalid_reason}; sẽ tải lại")
+            print(f"\n{dest.name}: {invalid_reason}; sẽ tải lại")
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
@@ -148,7 +144,7 @@ def download_file(url: str, dest: Path, file_type: str | None = None,
         try:
             with requests.get(url, headers=HEADERS, stream=True, timeout=TIMEOUT) as r:
                 if r.status_code == 404:
-                    print(f"  [404] không tồn tại: {url}")
+                    print(f"\n[404] không tồn tại: {url}")
                     return "missing"
                 r.raise_for_status()
 
@@ -165,17 +161,17 @@ def download_file(url: str, dest: Path, file_type: str | None = None,
 
             if tmp.stat().st_size == 0:
                 raise OSError("máy chủ trả về tệp rỗng")
-            invalid_reason = (validate_csv_gz(tmp, file_type)
+            invalid_reason = (validate_csv(tmp, file_type)
                               if file_type else validate_geojson(tmp))
             if invalid_reason is not None:
                 raise OSError(f"tệp tải về không hợp lệ: {invalid_reason}")
 
             tmp.replace(dest)  # chỉ đổi tên khi tải xong hoàn toàn
-            print(f"  [ok] {dest}")
-            return "ok"
+            print(f"\n[done] {dest}")
+            return "done"
 
         except (requests.RequestException, OSError) as e:
-            print(f"\n  [lỗi] lần {attempt}/{MAX_RETRIES}: {e}")
+            print(f"\n[lỗi] lần {attempt}/{MAX_RETRIES}: {e}")
             if tmp.exists():
                 tmp.unlink()
             if attempt < MAX_RETRIES:
@@ -187,51 +183,40 @@ def download_file(url: str, dest: Path, file_type: str | None = None,
 # Main
 def main() -> int:
     ap = argparse.ArgumentParser(description="Tải dữ liệu Inside Airbnb theo file config YAML")
-    ap.add_argument("--config", help="Đường dẫn file yaml (mặc định: tự tìm trong configs/)")
-    ap.add_argument("--force", action="store_true", help="Tải lại và ghi đè tệp đã có")
-    ap.add_argument("--dry-run", action="store_true", help="Chỉ in URL và nơi lưu, không tải")
+    ap.add_argument("--config", help="Đường dẫn yaml có dạng configs/*.yaml")
+    ap.add_argument("--force", action="store_true", help="Ghi đè tệp đã có")
+    ap.add_argument("--test", action="store_true", help="Chỉ in URL và nơi lưu, không tải")
     args = ap.parse_args()
 
     cfg_path = find_config(args.config).resolve()
     cfg = load_config(cfg_path)
-
-    # raw_dir tính theo thư mục gốc dự án (cha của configs/) nên không phụ thuộc nơi chạy lệnh
-    project_root = cfg_path.parent.parent
     out_root = Path(cfg["raw_dir"])
-    if not out_root.is_absolute():
-        out_root = project_root / out_root
-    expected_raw_root = (project_root / "data" / "raw").resolve()
-    if out_root.resolve() != expected_raw_root:
-        sys.exit(f"Dữ liệu thô phải được lưu trong {expected_raw_root}")
-
-    print(f"Config : {cfg_path}")
-    print(f"Thành phố: {cfg.get('city', '?')} ({cfg.get('country', '?')}) | Nguồn: {cfg.get('source', '?')}")
-    print(f"Lưu vào: {out_root}")
 
     jobs = build_jobs(cfg, out_root)
-    stats = {"ok": 0, "skipped": 0, "missing": 0, "failed": 0}
+    stats = {"done": 0, "skipped": 0, "missing": 0, "failed": 0}
 
     last_folder = None
     for url, dest in jobs:
         if dest.parent != last_folder:
             last_folder = dest.parent
-            print(f"\n=== {dest.parent.name} ===")
-        if args.dry_run:
-            print(f"  {url}\n    -> {dest}")
+            print("===============")
+            print(f"Mốc: {dest.parent.name}")
+        if args.test:
+            print(f"\n{dest.name}\n   -> {dest}")
             continue
         file_type = (dest.name.removesuffix(".csv.gz")
                      if dest.name.endswith(".csv.gz") else None)
         stats[download_file(url, dest, file_type, args.force)] += 1
 
-    if args.dry_run:
-        print(f"\n(dry-run) Tổng cộng {len(jobs)} tệp.")
+    if args.test:
+        print(f"\nTổng cộng {len(jobs)} tệp.")
         return 0
 
-    print("\n--- Tổng kết ---")
-    print(f"Tải mới: {stats['ok']} | Đã có: {stats['skipped']} | "
-          f"Không tìm thấy: {stats['missing']} | Lỗi: {stats['failed']}")
+    print("\nHoàn thành")
+    print(f"\n  Tải mới: {stats['done']}\n  Đã có: {stats['skipped']}"
+          f"\n  Không tìm thấy: {stats['missing']}\n    Lỗi: {stats['failed']}")
     if stats["missing"]:
-        print("Gợi ý: kiểm tra lại ngày mốc trên https://insideairbnb.com/get-the-data/")
+        print("\nKiểm tra lại mốc")
     return 1 if stats["failed"] or stats["missing"] else 0
 
 
