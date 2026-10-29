@@ -11,7 +11,7 @@ project_root = next(
     Path.cwd(),
 )
 raw_dir = project_root / "data" / "raw"
-output_dir = raw_dir / "processeds"
+output_dir = project_root / "data" / "processed"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 listing_columns = ["Lớp", "Nhóm", "Mã dữ liệu", "listing_id", "analysis_area", " "]
