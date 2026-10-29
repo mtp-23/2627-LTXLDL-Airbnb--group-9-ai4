@@ -12,6 +12,7 @@ import yaml
 
 MAX_RETRIES = 3
 TIMEOUT = 60  # giây
+CHUNK = 1024 * 1024
 HEADERS = {"User-Agent": "Mozilla/5.0 (student-project; Inside Airbnb downloader)"}
 SNAPSHOT_COUNT = 4
 FILE_KEYS = {
@@ -135,6 +136,10 @@ def download_file(url: str, dest: Path, file_type: str | None = None, force: boo
                 if r.status_code == 404:
                     return "missing"
                 r.raise_for_status()
+                with open(tmp, "wb") as f:
+                    for chunk in r.iter_content(CHUNK):
+                        if chunk:
+                            f.write(chunk)
 
             if tmp.stat().st_size == 0:
                 raise OSError("máy chủ trả về tệp rỗng")
@@ -175,8 +180,7 @@ def main() -> int:
         stats[download_file(url, dest, file_type, args.force)] += 1
 
     print("\nHoàn thành")
-    print(f"\n  Tải mới: {stats['done']}\n  Đã có: {stats['skipped']}"
-          f"\n  Không tìm thấy: {stats['missing']}\n    Lỗi: {stats['failed']}")
+    print(f"\nTải mới: {stats['done']}\nĐã có: {stats['skipped']}\nKhông tìm thấy: {stats['missing']}\nLỗi: {stats['failed']}")
     if stats["missing"]:
         print("\nKiểm tra lại mốc")
     return 1 if stats["failed"] or stats["missing"] else 0
