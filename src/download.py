@@ -179,7 +179,6 @@ def main() -> int:
                      if dest.name.endswith(".csv.gz") else None)
         stats[download_file(url, dest, file_type, args.force)] += 1
 
-    print("\nHoàn thành")
     print(f"\nTải mới: {stats['done']}\nĐã có: {stats['skipped']}\nKhông tìm thấy: {stats['missing']}\nLỗi: {stats['failed']}")
     if stats["missing"]:
         print("\nKiểm tra lại mốc")
