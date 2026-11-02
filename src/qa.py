@@ -63,7 +63,7 @@ for folder in sorted(path for path in raw_dir.iterdir() if path.is_dir() and pat
         review_defaults,
         {"review_id": "id", "listing_id": "listing_id"},
     )
-    print(f"{folder.name}: listings={listing_count:,}, reviews={review_count:,}")
+    print(f"{folder.name}: listings={listing_count:,}, reviews={review_count:,} -> {output_dir}")
     
 
 
@@ -74,6 +74,7 @@ for folder in sorted(path for path in raw_dir.iterdir() if path.is_dir() and pat
 RULES = [
     # thiếu
     {
+        # Cái này hơi thừa vì data không bị thiếu 
         "name": "missing_listing_id",
         "condition": "id bị thiếu/None/null",
         "reason": "Không thể định danh listing",
