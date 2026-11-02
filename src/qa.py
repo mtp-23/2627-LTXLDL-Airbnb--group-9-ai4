@@ -2,78 +2,85 @@ import pandas as pd
 import argparse
 import numpy as np
 from pathlib import Path
+import os 
+
+
+
+cwd = Path.cwd()
+root = next(p for base in [cwd, *cwd.parents] for p in [base, *base.iterdir()] if (p / "data" / "in_sheet").is_dir())
+TEAM_LISTINGS, TEAM_REVIEW, TEAM_VUNG = (root / "data" / "in_sheet" / f for f in ["Listing.csv", "Review.csv", "Vùng.csv"])
+out = root / "data" / "loc_in_sheet"
+out.mkdir(exist_ok=True)
+
+filters = pd.Series(["UET.DSE2049 4", "9", "DSE2049-C04-G09-santiago"], index=["Lớp", "Nhóm", "Mã dữ liệu"])
+select = lambda df: df.loc[df[filters.index].astype(str).eq(filters).all(axis=1)]
+
+listing = select(pd.read_csv(TEAM_LISTINGS, usecols=[*filters.index, "listing_id", "analysis_area"], encoding="utf-8"))
+listing[[*filters.index, "listing_id", "analysis_area"]].to_csv(out / "Listing.csv", index=False, encoding="utf-8")
+
+revs = select(pd.read_csv(TEAM_REVIEW, usecols=[*filters.index, "review_id", "listing_id", "Mẫu LLM", "Nhãn tay"], encoding="utf-8"))
+revs[[*filters.index, "review_id", "listing_id", "Mẫu LLM", "Nhãn tay"]].to_csv(out / "Review.csv", index=False, encoding="utf-8")
+
+areas = pd.read_csv(TEAM_VUNG, index_col=0, encoding="utf-8")
+areas.loc[["Santiago"]].to_csv(out / "Vùng.csv", encoding="utf-8")
+
+
 
 
 
 project_root = next(
-    (path for path in (Path.cwd(), *Path.cwd().parents)
-     if (path / "data" / "raw").is_dir()),
-    Path.cwd(),
+    path for path in (Path.cwd(), *Path.cwd().parents)
+    if (path / "data" / "raw").is_dir()
 )
-raw_dir = project_root / "data" / "raw"
-output_dir = project_root / "data" / "processed"
-output_dir.mkdir(parents=True, exist_ok=True)
+data_dir = project_root / "data"
+raw_dir = data_dir / "raw"
+loc_dir = data_dir / "loc_in_sheet"
+processed_dir = data_dir / "processed"
 
-listing_columns = ["Lớp", "Nhóm", "Mã dữ liệu", "listing_id", "analysis_area", " "]
-review_columns = ["Lớp", "Nhóm", "Mã dữ liệu", "review_id", "listing_id", "Mẫu LLM", "Nhãn tay"]
+team_listings = pd.read_csv(
+    loc_dir / "Listing.csv",
+    usecols=["listing_id", "analysis_area"],
+    dtype=str,
+)
+team_calendar = pd.read_csv(
+    loc_dir / "Listing.csv",
+    usecols=["Lớp", "Nhóm", "Mã dữ liệu", "listing_id"],
+    dtype=str,
+)
+areas = pd.read_csv(loc_dir / "Vùng.csv", index_col=0, dtype=str)
+revs = pd.read_csv(
+    loc_dir / "Review.csv",
+    usecols=["review_id", "Mẫu LLM", "Nhãn tay"],
+    dtype=str,
+)
 
-listing_defaults = {
-    "Lớp": "UET.DSE2049 4",
-    "Nhóm": "9",
-    "Mã dữ liệu": "DSE2049-C04-G09-santiago",
-}
-review_defaults = {
-    "Lớp": "UET.DSE2049 4",
-    "Nhóm": "9",
-    "Mã dữ liệu": "DSE2049-C04-G09-santiago",
-}
+for i in sorted(os.listdir(raw_dir)):
+    output_dir = processed_dir / i
+    os.makedirs(output_dir, exist_ok=True)
 
+    tmp_listing = raw_dir / i / "listings.csv.gz"
+    listings = pd.read_csv(tmp_listing, dtype=str)
+    a = listings.merge(team_listings, left_on="id", right_on="listing_id", how="right")
+    aa = a.merge(areas, on="analysis_area", how="left")
+    aa = aa.drop(columns=["listing_id", "analysis_area"])
+    aa.to_csv(output_dir / "listings.csv", index=False, encoding="utf-8")
 
-def export_csv(source_path, output_path, columns, defaults, id_mapping):
-    source_columns = list(id_mapping.values())
-    source_data = pd.read_csv(
-        source_path,
-        usecols=source_columns,
-        dtype=str,
-        keep_default_na=False,
-    )
+    tmp_calendar = raw_dir / i / "calendar.csv.gz"
+    calendar = pd.read_csv(tmp_calendar, dtype=str)
+    bb = team_calendar.merge(calendar, on="listing_id", how="left")
+    bb.to_csv(output_dir / "calendar.csv", index=False, encoding="utf-8")
 
-    output_data = pd.DataFrame("", index=source_data.index, columns=columns)
-    for column, value in defaults.items():
-        output_data[column] = value
-    for output_column, source_column in id_mapping.items():
-        output_data[output_column] = source_data[source_column]
-
-    output_data.to_csv(output_path, index=False, encoding="utf-8-sig")
-    return len(output_data)
-
-
-for folder in sorted(path for path in raw_dir.iterdir() if path.is_dir() and path.name != "processeds"):
-    listing_count = export_csv(
-        folder / "listings.csv.gz",
-        output_dir / f"listing_{folder.name}.csv",
-        listing_columns,
-        listing_defaults,
-        {"listing_id": "id"},
-    )
-    review_count = export_csv(
-        folder / "reviews.csv.gz",
-        output_dir / f"review_{folder.name}.csv",
-        review_columns,
-        review_defaults,
-        {"review_id": "id", "listing_id": "listing_id"},
-    )
-    print(f"{folder.name}: listings={listing_count:,}, reviews={review_count:,}")
-    
-
-
-
-
+    tmp_reviews = raw_dir / i / "reviews.csv.gz"
+    reviews = pd.read_csv(tmp_reviews, dtype=str)
+    c = reviews.merge(revs, left_on="id", right_on="review_id", how="right")
+    cc = c.drop(columns=["review_id"])
+    cc.to_csv(output_dir / "review.csv", index=False, encoding="utf-8")
 
 # rules: name - condition - reason - todo (ưu tiên gắn cờ)
 RULES = [
     # thiếu
     {
+        # Cái này hơi thừa vì data không bị thiếu 
         "name": "missing_listing_id",
         "condition": "id bị thiếu/None/null",
         "reason": "Không thể định danh listing",
