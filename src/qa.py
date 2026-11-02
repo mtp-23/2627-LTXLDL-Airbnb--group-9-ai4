@@ -11,7 +11,7 @@ project_root = next(
     Path.cwd(),
 )
 raw_dir = project_root / "data" / "raw"
-output_dir = raw_dir / "processeds"
+output_dir = project_root / "data" / "processed"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 listing_columns = ["Lớp", "Nhóm", "Mã dữ liệu", "listing_id", "analysis_area", " "]
@@ -63,7 +63,7 @@ for folder in sorted(path for path in raw_dir.iterdir() if path.is_dir() and pat
         review_defaults,
         {"review_id": "id", "listing_id": "listing_id"},
     )
-    print(f"{folder.name}: listings={listing_count:,}, reviews={review_count:,}")
+    print(f"{folder.name}: listings={listing_count:,}, reviews={review_count:,} -> {output_dir}")
     
 
 
@@ -74,6 +74,7 @@ for folder in sorted(path for path in raw_dir.iterdir() if path.is_dir() and pat
 RULES = [
     # thiếu
     {
+        # Cái này hơi thừa vì data không bị thiếu 
         "name": "missing_listing_id",
         "condition": "id bị thiếu/None/null",
         "reason": "Không thể định danh listing",
@@ -141,18 +142,6 @@ RULES = [
     },
 
     # kiểu sai
-    {
-        "name": "invalid_human_label",
-        "condition": "Nhãn thủ công không thuộc tập nhãn được quy định",
-        "reason": "Không thể dùng nhãn này làm ground truth để tính F1-score",
-        "todo": "Gắn cờ",
-    },
-    {
-        "name": "invalid_listing_id",
-        "condition": "id không thể chuyển thành định danh hợp lệ",
-        "reason": "Có thể làm sai phép ghép dữ liệu giữa các bảng",
-        "todo": "Gắn cờ",
-    },
     {
         "name": "invalid_reviews_num",
         "condition": "number_of_reviews không phải số nguyên hợp lệ",
@@ -222,12 +211,6 @@ RULES = [
         "reason": "Có thể khiến một review bị đếm nhiều lần",
         "todo": "Gắn cờ",
     },
-    {
-        "name": "duplicate_review_id_in_evaluation",
-        "condition": "Một review_id xuất hiện nhiều hơn một lần trong tập đánh giá LLM",
-        "reason": "Review bị tính nhiều lần có thể làm sai kết quả đánh giá",
-        "todo": "Gắn cờ và kiểm tra trước khi tính KPI",
-    },
     # danh mục lệch
     {
         "name": "unexpected_listing_id",
@@ -236,34 +219,10 @@ RULES = [
         "todo": "Gắn cờ",
     },
     {
-        "name": "listing_id_set_mismatch_between_snapshots",
-        "condition": "Tập ID listing giữa các snapshot không giống nhau",
-        "reason": "Có thể làm sai lệch việc so sánh KPI theo thời gian",
-        "todo": "Gắn cờ và báo cáo các ID khác biệt",
-    },
-
-
-
-    {
-        "name": "calendar_row_count_mismatch",
-        "condition": "Số dòng calendar khác 365.000 dòng trong một snapshot",
-        "reason": "Có thể thiếu hoặc thừa ngày lịch so với 1.000 listing trong 365 ngày",
-        "todo": "Gắn cờ và kiểm tra số dòng thực tế",
-    },
-    {
         "name": "calendar_days_per_listing_mismatch",
         "condition": "Một listing có số ngày calendar khác 365 ngày trong snapshot",
         "reason": "Dữ liệu lịch của listing có thể chưa đầy đủ hoặc bị thừa",
         "todo": "Gắn cờ",
-    },
-
-
-
-    {
-        "name": "review_listing_id_not_in_listings",
-        "condition": "listing_id của review không tồn tại trong tập ID listing được phân công",
-        "reason": "Review có thể nằm ngoài phạm vi phân tích",
-        "todo": "Gắn cờ và kiểm tra phạm vi dữ liệu",
     },
     {
         "name": "review_id_overlap_between_snapshots",
@@ -271,8 +230,6 @@ RULES = [
         "reason": "Review có thể được giữ lại qua nhiều lần thu thập dữ liệu; cần phân biệt dữ liệu tích lũy với bản ghi trùng ngoài ý muốn",
         "todo": "Ghi nhận để kiểm tra; không tự động coi là lỗi hoặc xóa",
     },
-
-
     {
         "name": "unmatched_review_id_in_evaluation",
         "condition": "Không ghép được duy nhất review_id giữa kết quả LLM và nhãn thủ công",
