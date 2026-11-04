@@ -4,10 +4,18 @@ import numpy as np
 from pathlib import Path
 import os 
 
+# Lấy thư mục gốc của dự án dựa trên vị trí file src/qa.py
+project_root = Path(__file__).resolve().parent.parent
 
+# Hoặc nếu chạy từ nhiều vị trí khác nhau mà muốn tìm linh hoạt:
+def find_project_root():
+    for p in [Path.cwd(), *Path.cwd().parents]:
+        if (p / "data" / "in_sheet").is_dir():
+            return p
+    return Path(__file__).resolve().parent.parent
 
-cwd = Path.cwd()
-root = next(p for base in [cwd, *cwd.parents] for p in [base, *base.iterdir()] if (p / "data" / "in_sheet").is_dir())
+root = find_project_root()
+project_root = root
 TEAM_LISTINGS, TEAM_REVIEW, TEAM_VUNG = (root / "data" / "in_sheet" / f for f in ["Listing.csv", "Review.csv", "Vùng.csv"])
 out = root / "data" / "loc_in_sheet"
 out.mkdir(exist_ok=True)
@@ -24,14 +32,6 @@ revs[[*filters.index, "review_id", "listing_id", "Mẫu LLM", "Nhãn tay"]].to_c
 areas = pd.read_csv(TEAM_VUNG, index_col=0, encoding="utf-8")
 areas.loc[["Santiago"]].to_csv(out / "Vùng.csv", encoding="utf-8")
 
-
-
-
-
-project_root = next(
-    path for path in (Path.cwd(), *Path.cwd().parents)
-    if (path / "data" / "raw").is_dir()
-)
 data_dir = project_root / "data"
 raw_dir = data_dir / "raw"
 loc_dir = data_dir / "loc_in_sheet"
