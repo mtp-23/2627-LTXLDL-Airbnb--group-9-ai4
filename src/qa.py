@@ -80,7 +80,6 @@ for i in sorted(os.listdir(raw_dir)):
 RULES = [
     # thiếu
     {
-        # Cái này hơi thừa vì data không bị thiếu 
         "name": "missing_listing_id",
         "condition": "id bị thiếu/None/null",
         "reason": "Không thể định danh listing",
@@ -134,7 +133,7 @@ RULES = [
         "reason": "Không có nội dung để phân tích cảm xúc bằng LLM",
         "todo": "Gắn cờ và loại khỏi tập đầu vào LLM nếu không có nội dung",
     },
-    {
+    {# bỏ cái này 
         "name": "missing_listing_id_1000",
         "condition": "Một ID thuộc danh sách 1.000 ID chuẩn không xuất hiện trong snapshot",
         "reason": "Các snapshot không còn cùng phạm vi listing để so sánh",
@@ -218,7 +217,8 @@ RULES = [
         "todo": "Gắn cờ",
     },
     # danh mục lệch
-    {
+
+    {# bỏ luật này 
         "name": "unexpected_listing_id",
         "condition": "Snapshot chứa ID không thuộc danh sách 1.000 ID chuẩn",
         "reason": "Có thể dữ liệu đã chứa listing ngoài phạm vi được phân công",
@@ -243,3 +243,170 @@ RULES = [
         "todo": "Gắn cờ và báo cáo ID không khớp",
     },
 ]
+
+cwd = Path.cwd()
+candidates = [cwd, *cwd.parents]
+candidates += [path for path in cwd.iterdir() if path.is_dir()]
+project_root = next(
+    (path for path in candidates if (path / "data" / "processed").is_dir())
+)
+
+data_dir = project_root / "data"
+processed_dir = data_dir / "processed"
+output_root = data_dir / "sach"
+reference_dir = data_dir / "loc_in_sheet"
+output_root.mkdir(parents=True, exist_ok=True)
+snapshots = sorted(path for path in processed_dir.iterdir() if path.is_dir())
+
+
+def is_missing(values: pd.Series) -> pd.Series:
+    values = values.astype("string").str.strip().str.casefold()
+    return values.isna() | values.isin({"", "none", "null", "nan", "<na>"})
+
+
+def add_flag(df: pd.DataFrame, name: str, valid: pd.Series) -> pd.DataFrame:
+    if name in df.columns:
+        df.drop(columns=name, inplace=True)
+    df[name] = valid.fillna(False).map({True: "t", False: "f"})
+    return df
+
+
+def add_presence_flag(df: pd.DataFrame, column: str, name: str) -> pd.DataFrame:
+    return add_flag(df, name, ~is_missing(df[column]))
+
+
+def add_listing_flags(df: pd.DataFrame) -> pd.DataFrame:
+    ids = df["id"].astype("string").str.strip()
+    missing_id = is_missing(ids)
+    # missing_listing_id
+    add_presence_flag(df, "id", "has_id")
+    # duplicate_listing_id
+    add_flag(df, "is_unique_listing_id", ~missing_id & ~ids.duplicated(keep=False))
+
+    for column, flag in [
+        ("neighbourhood_cleansed", "has_neighbourhood_cleansed"),
+        ("room_type", "has_room_type"),
+        ("number_of_reviews", "has_number_of_reviews"),
+        ("price", "has_price"),
+    ]:
+        # missing_neigh_cleansed / missing_room_type / missing_number_of_reviews / missing_price
+        add_presence_flag(df, column, flag)
+
+    # invalid_reviews_num
+    reviews_num = pd.to_numeric(df["number_of_reviews"].str.strip(), errors="coerce")
+    valid_num = reviews_num.notna() & reviews_num.ge(0) & reviews_num.mod(1).eq(0)
+    add_flag(df, "is_valid_number_of_reviews", valid_num)
+
+    # invalid_room_type
+    room_types = {"entire home/apt", "private room", "shared room", "hotel room"}
+    valid_room = df["room_type"].str.strip().str.casefold().isin(room_types)
+    add_flag(df, "is_valid_room_type", valid_room)
+
+    # missing_price / invalid_price / outlier_price
+    price_text = df["price"].str.strip().str.replace(r"[$,]", "", regex=True)
+    price = pd.to_numeric(price_text, errors="coerce")
+    valid_price = price.notna() & price.ge(0) & price.ne(float("inf")) & price.ne(float("-inf"))
+    add_flag(df, "is_valid_price", valid_price)
+    if valid_price.any():
+        q1, q3 = price[valid_price].quantile([0.25, 0.75])
+        spread = q3 - q1
+        within_iqr = valid_price & price.ge(q1 - 1.5 * spread) & price.le(q3 + 1.5 * spread)
+    else:
+        within_iqr = pd.Series(False, index=df.index)
+    add_flag(df, "is_within_price_iqr", within_iqr)
+    return df
+
+
+def add_calendar_flags(df: pd.DataFrame) -> pd.DataFrame:
+    listing_ids = df["listing_id"].astype("string").str.strip()
+    valid_id = ~is_missing(listing_ids)
+    # missing_cal_list_id
+    add_presence_flag(df, "listing_id", "has_calendar_listing_id")
+
+    # invalid_calendar_date
+    dates = pd.to_datetime(df["date"], errors="coerce")
+    valid_date = dates.notna()
+    add_flag(df, "is_valid_calendar_date", valid_date)
+    # invalid_calendar_available
+    available = df["available"].astype("string").str.strip().str.casefold()
+    add_flag(df, "is_valid_calendar_available", available.isin({"t", "f"}))
+
+    # duplicate_calendar_key
+    valid_key = valid_id & ~is_missing(df["date"])
+    unique_key = ~df.duplicated(["listing_id", "date"], keep=False)
+    add_flag(df, "is_unique_calendar_key", valid_key & unique_key)
+
+    # calendar_days_per_listing_mismatch
+    days = pd.DataFrame({"listing_id": listing_ids, "date": dates})
+    days = days.loc[valid_id & valid_date].drop_duplicates()
+    day_counts = days.groupby("listing_id")["date"].size()
+    has_365_days = listing_ids.map(day_counts).eq(365)
+    add_flag(df, "has_365_calendar_days", valid_id & has_365_days)
+    return df
+
+
+def add_review_flags(
+    df: pd.DataFrame, overlap_ids: set[str], evaluation_counts: pd.Series
+) -> pd.DataFrame:
+    ids = df["id"].astype("string").str.strip()
+    valid_id = ~is_missing(ids)
+    # missing_review_id
+    add_presence_flag(df, "id", "has_review_id")
+    # duplicate_review_id_within_snapshot
+    add_flag(df, "is_unique_review_id", valid_id & ~ids.duplicated(keep=False))
+    # review_id_overlap_between_snapshots
+    add_flag(df, "has_review_id_overlap_between_snapshots", valid_id & ids.isin(overlap_ids))
+
+    # missing_review_listing_id
+    add_presence_flag(df, "listing_id", "has_review_listing_id")
+    # missing_review_date / invalid_review_date
+    add_presence_flag(df, "date", "has_review_date")
+    review_dates = pd.to_datetime(df["date"], errors="coerce")
+    add_flag(df, "is_valid_review_date", review_dates.notna())
+    # missing_review_text
+    add_presence_flag(df, "comments", "has_review_text")
+
+    # invalid_llm_label
+    labels = df["Mẫu LLM"].astype("string").str.strip().str.casefold()
+    add_flag(df, "is_valid_llm_label", labels.isin({"positive", "mixed", "negative"}))
+    # unmatched_review_id_in_evaluation
+    matched = ids.map(evaluation_counts).eq(1) & ~ids.duplicated(keep=False)
+    add_flag(df, "is_review_id_matched", valid_id & matched)
+    return df
+
+# review ID 
+review_file = reference_dir / "Review.csv"
+evaluation_ids = pd.read_csv(
+    review_file, dtype="string", keep_default_na=False, usecols=["review_id"]
+)["review_id"].str.strip()
+evaluation_ids = evaluation_ids[~is_missing(evaluation_ids)]
+evaluation_counts = evaluation_ids.value_counts()
+
+# Tìm review ID 
+review_ids_by_snapshot = {}
+for snapshot in snapshots:
+    review_file = snapshot / "review.csv"
+    ids = pd.read_csv(
+        review_file, dtype="string", keep_default_na=False, usecols=["id"]
+    )["id"].str.strip()
+    review_ids_by_snapshot[snapshot.name] = set(ids[~is_missing(ids)])
+
+snapshot_counts = {}
+for ids in review_ids_by_snapshot.values():
+    for review_id in ids:
+        snapshot_counts[review_id] = snapshot_counts.get(review_id, 0) + 1
+overlap_ids = {review_id for review_id, count in snapshot_counts.items() if count > 1}
+
+# Làm sạch
+for snapshot in snapshots:
+    output_dir = output_root / snapshot.name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    listings = pd.read_csv(snapshot / "listings.csv", dtype="string", keep_default_na=False)
+    calendar = pd.read_csv(snapshot / "calendar.csv", dtype="string", keep_default_na=False)
+    reviews = pd.read_csv(snapshot / "review.csv", dtype="string", keep_default_na=False)
+
+    add_listing_flags(listings)
+    add_calendar_flags(calendar)
+    add_review_flags(reviews, overlap_ids, evaluation_counts)
+    for name, df in [("listings.csv", listings), ("calendar.csv", calendar), ("review.csv", reviews)]:
+        df.to_csv(output_dir / name, index=False, encoding="utf-8")
