@@ -1,0 +1,1078 @@
+review_id,sentiment,aspects_positive,aspects_negative,language
+1084810014998442211,mixed,,"safety, amenities, cleanliness",en
+823920065110103812,positive,"amenities, host, cleanliness, amenities",,en
+1446516845958733133,positive,"host, safety",,en
+350006020,positive,location,,en
+1342130397727675023,mixed,"safety, noise, amenities, location",amenities,en
+1360205402360039189,positive,"host, location, safety",,en
+1097129970202589249,positive,"amenities, amenities, host",,en
+844192283534347777,positive,host,,en
+165656148,positive,"location, cleanliness",,en
+10506535,positive,"amenities, host, location",,en
+539030629741101969,positive,"cleanliness, location, host",,en
+1233475514556926088,positive,"location, host, noise",,en
+936949708139121508,positive,"host, amenities, location",,en
+541593665,negative,,"cleanliness, safety, host",en
+863057178856519224,positive,"host, cleanliness",,en
+89983020,positive,host,,en
+402728887,positive,"host, location",,en
+172318784,positive,"location, host",,en
+1392780557563358790,positive,"location, amenities, host",,en
+1214621476542689862,positive,"cleanliness, host",,en
+955817147328662137,positive,cleanliness,noise,en
+1134137936930493087,positive,"host, amenities",,en
+1119536976470101938,positive,"location, host",,en
+336588691,positive,"host, amenities",,en
+782566101280634938,positive,"amenities, location, host",,en
+612980242165824454,positive,"host, cleanliness",,en
+154275163,positive,"location, noise, safety, host",,en
+1316677062168785000,positive,"host, location",amenities,en
+166805828,positive,"location, cleanliness",,en
+1102179963202051375,positive,"location, cleanliness, amenities",,en
+1492921662007902910,positive,"amenities, host",,en
+406443178279686785,positive,"cleanliness, amenities, location",,en
+592070930,mixed,,location,en
+1388439723987894424,positive,location,,en
+105659334,positive,"cleanliness, amenities, host",,en
+865942274315919001,positive,location,,en
+1119557601209708021,positive,"host, location, cleanliness",,en
+662330860302876959,positive,host,,en
+342790790,positive,host,,en
+1155845785524856801,positive,"amenities, safety, host, value",,en
+647789898412265607,positive,"safety, host, cleanliness, amenities",,en
+142278169,positive,"location, host, cleanliness",,en
+1038407994755864601,positive,"host, cleanliness",,en
+564273856,positive,"host, location, noise, amenities",,en
+350006103,positive,"host, location",,en
+1312430658662911056,positive,"cleanliness, location, noise, safety, host",,en
+465358940,positive,"amenities, location",,en
+1023256491310680615,positive,cleanliness,,en
+226221374,positive,"location, safety, host",,en
+418562772,positive,"location, host",,en
+85080546,positive,"host, cleanliness, value",,en
+344397754,mixed,location,"amenities, noise",en
+751374637617330077,positive,"value, host",,en
+151984255,positive,"host, amenities",,en
+1258798514284892050,positive,"cleanliness, safety, location, host",,en
+122871045,positive,"location, amenities",,en
+1272529559764885971,positive,"amenities, location",,en
+665973826049235611,positive,"location, amenities",,en
+1376897664662378014,positive,"location, amenities",,en
+1041305434711149173,positive,host,,en
+1508102217859969059,positive,"location, safety, amenities, value, host",,en
+1035512181371239653,positive,"amenities, location",,en
+850645328664022659,positive,"host, location",,en
+977560582241191441,mixed,value,host,en
+1102254974942700065,positive,"amenities, safety, location, host",,en
+912400197405918619,positive,"host, amenities",,en
+1108695535213703570,positive,"cleanliness, amenities, location",,en
+1075425193003934564,positive,"location, amenities",,en
+1475496674931059004,positive,"cleanliness, value, location, amenities",,en
+1263075724362470968,positive,,amenities,en
+841314810998844298,negative,"location, value","cleanliness, amenities",en
+1057993539043986293,positive,"location, noise, amenities, host",,en
+942094587953061460,positive,"location, amenities, safety",,en
+1370330468446759089,mixed,"value, cleanliness, location",safety,en
+1046340468086969003,positive,"amenities, noise, location",,en
+549233454011020460,positive,"location, cleanliness, amenities, host",,en
+1401533788964804419,positive,location,,en
+1064476590663195114,positive,"cleanliness, amenities, location, noise, safety",,en
+1097070311611735785,positive,"host, amenities, location",,en
+1393610449153557730,positive,amenities,,en
+689128984123688378,positive,"location, amenities, host",,en
+598934308,positive,"location, safety, host, amenities",,en
+65042739,positive,"amenities, location, host",,en
+1021025092757007278,positive,"location, cleanliness, amenities, host",,en
+364320335,positive,"location, cleanliness",,en
+81283846,positive,"location, host",,en
+413384939,positive,"location, amenities",,en
+1391403594492557598,positive,host,,en
+1228294240297722854,positive,host,,en
+1379738003310592096,positive,location,,en
+1347118051835732748,positive,"location, noise, host, cleanliness",,en
+359204067,positive,"amenities, host",,en
+1065268335432979408,positive,"location, amenities, host",safety,en
+1140666432353701309,positive,"host, location, safety",amenities,en
+243575646,positive,"location, host",,en
+1408140627141373777,positive,"location, safety, cleanliness, host, amenities",,en
+1002941629200834604,positive,"cleanliness, host",,en
+1667552296290293026,mixed,"location, host",amenities,es
+1550102609716021704,positive,"location, amenities, safety, host",,fr
+1131902466684844273,positive,"cleanliness, location, host",,es
+1698693451084795236,positive,"amenities, safety, location, host",,en
+351618257,positive,"host, amenities",,es
+852898333063470663,positive,,,es
+1165344558946038237,positive,,amenities,es
+1697972466953682421,positive,"cleanliness, location, safety, host",,es
+1458859774501599083,positive,"cleanliness, host, location, amenities",,es
+926858308051762920,positive,host,,es
+224834436,positive,"location, amenities",,es
+158436514,negative,host,amenities,en
+1487759547633323161,positive,"location, host, cleanliness, amenities",,es
+1464037692743220525,positive,host,,es
+1623315172618625574,positive,"cleanliness, host",,es
+1527633055584704320,positive,"location, amenities",,pt
+556505919620299506,positive,"amenities, location",,es
+536350227,positive,"amenities, location, noise",,es
+1018176463255836410,positive,"location, safety, amenities",,pt
+1692899539228348845,positive,amenities,,es
+1652351541829079415,positive,"host, location, amenities",,pt
+1145743418254517578,positive,"host, location",,es
+1698712619359661410,positive,,,es
+1713928197807806860,positive,,,pt
+929713208303263510,mixed,"cleanliness, location",host,es
+1621088273062862525,positive,,,es
+1389993955563717125,positive,"noise, host",,es
+1606684781261453313,mixed,"location, host, cleanliness, amenities",amenities,pt
+1629102895667907427,positive,,,es
+1107301139982068970,positive,location,,pt
+1279725163443261365,positive,cleanliness,,es
+1522579357183482089,positive,,,es
+929007009235355717,positive,"location, cleanliness, amenities",,es
+1093500044149377420,positive,"location, safety, cleanliness, host",,es
+1648681275992132757,positive,host,,es
+1071821720539079117,positive,"noise, location",,es
+1379046102530187992,positive,,,en
+1693685810427862230,positive,"location, cleanliness, host",,pt
+428586485,positive,"location, host",,en
+1637049281239135656,positive,,,es
+1589940755651977263,positive,"cleanliness, amenities, location",,es
+1468225882050793141,positive,,,es
+706887341,positive,"cleanliness, location, amenities",,es
+1290651542259991314,negative,,"host, amenities",fr
+917377288729041474,positive,location,,en
+1192055401317029227,positive,,,es
+1565283222237773067,positive,,,es
+1563875256112011407,positive,location,,es
+746432574,positive,,,es
+1422581476973063966,positive,,,es
+130673459,positive,"host, noise, location",,en
+1205891507957999792,positive,location,,es
+868819017403408792,positive,"location, safety",,en
+1111680254561387063,positive,location,,es
+1266769179351316824,positive,,,es
+1705089171750964890,positive,location,amenities,es
+1332734373906678202,positive,"cleanliness, location, amenities, host",,es
+1203729679590421522,positive,"location, noise, cleanliness, host, amenities",,es
+1576950270967527880,positive,"cleanliness, safety",,es
+1557383419807141961,positive,"location, noise, host",,fr
+680433955767297053,positive,,,en
+1385605644697689489,positive,,,es
+1415354522614034035,positive,"noise, location",,es
+1642920500212073743,positive,location,,es
+1229831611086619532,positive,"host, location, cleanliness",,es
+965190495119982497,positive,location,,es
+1410230898512941984,positive,"host, cleanliness, noise",,es
+789854243250529086,positive,"amenities, cleanliness, location, host",,es
+1183376230108862329,positive,,,es
+1070982553657340850,positive,"location, noise, host",,es
+1623345022089323124,positive,,,es
+351092762,positive,"cleanliness, location, host",,pt
+665938683066715133,positive,"location, noise",,es
+591990269590607837,positive,,,es
+1139232170398797794,positive,host,,en
+1295769540861274989,positive,"cleanliness, host, location",,es
+1358740745779977540,positive,"location, host",,es
+1546521373745122717,positive,location,,es
+738940671,mixed,,amenities,es
+1222581241449738464,positive,"location, cleanliness, noise, host",,es
+1588586228485519943,positive,"location, cleanliness, amenities, safety, host",amenities,en
+613008183,positive,,,es
+1499350348285292343,positive,,,es
+1484220328173315969,positive,"cleanliness, host",amenities,es
+1655877384365915590,positive,host,,es
+1299397770836947474,positive,"host, location",,es
+1574741656548271582,positive,"location, amenities",,nl
+1273975914474319676,positive,host,,es
+1129022865904929216,positive,"location, cleanliness, amenities, host",,pt
+1467469687324836422,positive,"host, amenities, location",,pt
+1657463885184493051,positive,"cleanliness, host",,es
+1067365414805410170,positive,"location, host",,es
+1536371420433654159,positive,,,es
+1282725403864814925,positive,"cleanliness, amenities, host",,pt
+1397979981266854425,positive,"cleanliness, location, host",,es
+1547974717236702015,positive,,,es
+248447104,mixed,"location, host","cleanliness, amenities",pt
+1616835031932912654,positive,"location, host",,es
+415165229684077107,positive,location,,es
+1392865016190760971,positive,host,,es
+1262318798584743432,positive,host,,es
+1413891938880482737,positive,"cleanliness, host",,es
+1571184890593981211,positive,location,,es
+1501588009779193784,positive,host,,es
+1352259019474064320,positive,,,es
+1071711736208330574,positive,"noise, host",,es
+1389266869241552799,positive,host,,es
+1479853054154103050,positive,"amenities, location",,es
+757121545,positive,"location, safety, host",,es
+1098634859771193290,positive,"host, cleanliness",,es
+1332699191969152597,positive,"location, amenities, noise",,es
+1447263782599908916,mixed,host,location,es
+723096067451326398,positive,"host, location",,es
+1574082543938632502,positive,,,en
+1529847008489182958,positive,,,en
+1627626380068606482,positive,host,,pt
+676055836016261034,positive,amenities,,es
+1530550429650125479,positive,noise,,es
+1183354117715900921,positive,"location, amenities",,pt
+1450837125129190728,positive,location,,es
+1583395236817630879,mixed,host,amenities,en
+1231295961050663496,positive,host,,es
+1671947280925138106,positive,location,,es
+1032613074949175167,positive,"location, cleanliness, host",,es
+742004403182128728,mixed,"cleanliness, host","location, noise",es
+1165303525470894688,positive,host,,es
+1052957159417599439,positive,"amenities, host",,en
+1203719914806227756,positive,"host, amenities, cleanliness, location, safety",,pt
+193432859,negative,,amenities,es
+1372592806280939396,positive,"host, location",,es
+937759268026672956,mixed,"location, amenities, host",amenities,es
+1308041184294838585,positive,host,,es
+1501577234082590473,positive,"host, location",,pt
+1646173452243204188,negative,,cleanliness,es
+1263824215582572033,positive,"host, location",,es
+364832431,positive,location,,pt
+1466838913558702878,positive,host,,pt
+1543617768000041432,positive,"location, amenities",,es
+613007682651317194,mixed,location,cleanliness,es
+1530504022164937166,positive,host,,es
+204313876,positive,host,,pt
+1292831288948032158,positive,"location, host",,es
+1483462276119284108,positive,amenities,,es
+1373284348279773506,positive,"cleanliness, amenities, location, host",,es
+1358042591556822865,positive,"host, amenities",,es
+1476182649840904688,positive,,,pt
+1713789160826712984,positive,amenities,,es
+1003583996261514672,positive,"amenities, location",,es
+709024720,positive,,,es
+1378360356738283729,positive,"host, location",,es
+1632022693766390651,positive,"location, safety, host",,es
+1322513390071673937,positive,amenities,,es
+1469725181198046813,positive,"amenities, host, location",,es
+206053024,positive,,,pt
+639074288076059606,positive,"location, safety",,es
+1561014199310429449,mixed,cleanliness,value,es
+707117308,positive,location,,es
+1471912997494040014,positive,"cleanliness, amenities",,es
+1073967470018594841,mixed,"cleanliness, location",host,es
+1687117455714952909,positive,"amenities, location",,es
+285042643,mixed,"value, location, safety, host, amenities",cleanliness,pt
+1355123250991750249,positive,"location, amenities",,es
+252638478,positive,"location, host, cleanliness",,pt
+1305908092076420547,positive,"noise, host",,es
+734722005884641130,positive,host,,es
+1276183871587632341,positive,"safety, noise",,es
+107649403,positive,"cleanliness, host, location",,en
+404832709,positive,"host, cleanliness, amenities, location",,en
+1682801829243775726,positive,"cleanliness, amenities",,es
+1551583694754159474,positive,location,,es
+678274754679184369,mixed,"amenities, host",amenities,pt
+1337759809118084837,positive,"location, noise, safety",,es
+1574077190475589299,positive,"location, host",noise,es
+752828772075797942,positive,value,,es
+778274104819430983,positive,safety,,es
+201940745,positive,host,,es
+1703750759287849051,positive,,,es
+1576983525032720990,mixed,,noise,es
+1521073624407087633,positive,"amenities, location",,pt
+142803893,positive,host,,es
+369398032,positive,"location, host",,pt
+1089916178315308066,positive,"location, cleanliness, host",,es
+1484910243647543955,positive,location,,es
+1116003836423351855,mixed,"value, cleanliness, safety, host","amenities, cleanliness",en
+1364592717278887581,positive,"location, cleanliness, host",,en
+1336314052882542911,positive,host,,es
+1531221897312090031,positive,host,,es
+1422616620841322074,positive,"location, host",,es
+1613897555813525542,positive,cleanliness,,es
+1237760967301820177,positive,host,,en
+172321672,positive,,,es
+928260362347393715,positive,"host, location",,en
+1634859484890359965,positive,"value, location",,es
+944990354351637118,positive,,,en
+1296396608297842526,positive,"location, cleanliness, host",,es
+1297173168511377511,positive,"safety, host",amenities,en
+1458832441607375474,negative,,value,es
+1363863242466159782,positive,amenities,,es
+776719133633507860,mixed,"location, host",safety,pt
+1068088696420138960,mixed,location,noise,en
+1634965719612322800,positive,amenities,,es
+1560936832246453738,positive,"noise, amenities",,es
+1311711891096805132,positive,"cleanliness, host, location, amenities",,en
+1053667964282676612,positive,"host, location, amenities",,es
+1635630379929078529,positive,"location, host",,es
+1311666021774576313,positive,,,es
+246905191,positive,"location, amenities, cleanliness, host",,en
+1534154644814166381,positive,location,,es
+1247154809060593455,positive,location,,es
+747377419,positive,"cleanliness, location, amenities",,es
+1497927378748384771,positive,cleanliness,,es
+419681285,positive,"location, host",,fr
+1668261997898036401,positive,location,,pt
+1355162645571913880,positive,host,,es
+1537115631347869988,positive,,,es
+652120119391986054,positive,"location, host",,es
+1592153432311100485,positive,"location, host",,es
+1718088506765282054,positive,"host, noise, location, cleanliness, value",,es
+1657470706173991563,positive,"location, noise, cleanliness",,es
+1082612673340209389,positive,"host, location",,es
+1466810618204374672,positive,,,es
+1060898868270416673,positive,,,es
+1037673173058010669,positive,cleanliness,,es
+1050687727132662074,positive,host,,fr
+1590739769292980641,positive,,,es
+1713103892995198098,positive,,,es
+958036194053876965,positive,,,pt
+1355840122651119680,positive,amenities,,es
+1220352445296152638,mixed,"location, cleanliness",amenities,pt
+598031179,positive,"cleanliness, amenities",,en
+1357275876734495112,positive,,,es
+1331907826463416215,positive,location,,pt
+647820670852773994,positive,host,,es
+1664717695362517149,positive,,,es
+823212209880710323,positive,"host, location",,en
+1289151083119242890,positive,"host, location",,es
+947076063468588851,positive,"location, cleanliness",,es
+1625449171093545352,positive,"cleanliness, location, host",,es
+536332853,positive,cleanliness,,fr
+1334159838942961059,positive,"location, amenities, host",,es
+1424079473683201509,positive,location,,pt
+685483664500628832,positive,"location, cleanliness",,es
+1457362363149078519,positive,,,es
+1467490532034931765,positive,host,,es
+1666827665293883453,positive,,,en
+1487122409763838661,positive,"cleanliness, host",,pt
+1327603370666400391,positive,host,,es
+873146105902377647,positive,"cleanliness, location, noise, safety, host",,es
+1700853145176394297,positive,"location, safety",,es
+535449236451795825,positive,"location, amenities, value",,pt
+1629875797645863163,positive,,,es
+1083397742633155890,positive,"safety, location, host",,es
+1596488068520423860,mixed,"amenities, cleanliness, amenities",cleanliness,es
+1469718904286555050,positive,,,es
+1270308154343750117,positive,"location, amenities",,de
+964569641580569038,positive,"location, amenities, safety",,en
+764454083084439022,positive,host,,es
+707421469,positive,host,,es
+901431350436601696,positive,host,,es
+840608043318557269,positive,"location, cleanliness",,es
+1576186600724247352,positive,host,,es
+1231243883415913826,positive,"location, cleanliness, host",,es
+874616096008227283,positive,"location, amenities",,pt
+1353002785509931079,positive,location,,es
+1046452736025352601,positive,host,,es
+505726632,positive,"host, location",,es
+1389924072586335386,positive,"location, cleanliness",,es
+1089099180593724236,positive,"host, cleanliness, location",,es
+1590706776852188237,positive,"location, cleanliness, host",,es
+1342066774404411663,positive,host,,es
+1560963206444322350,positive,cleanliness,,es
+648539039706947426,positive,amenities,,en
+1616800612639210936,mixed,"value, safety, location",amenities,es
+1493573967875906576,positive,"cleanliness, host",,es
+1574749862221876897,positive,"host, noise",,es
+1013057296726654913,positive,,,es
+531139065769620754,mixed,host,cleanliness,es
+1500074663934266423,positive,"location, host",,es
+1472610701675522996,mixed,,safety,pt
+1678421654462766409,positive,"host, amenities, location, safety",,es
+1631333831024830244,positive,"location, amenities",,pt
+1455944187917917531,positive,host,,pt
+1549385912045272767,positive,"cleanliness, host",,es
+1320369985565433719,positive,"location, amenities",,pt
+1179119222328578465,positive,amenities,,es
+1241398909571870644,positive,amenities,,es
+415032128,positive,location,,en
+1661713438448096653,positive,amenities,,es
+1220328789162137598,positive,amenities,,es
+1219623773314292881,positive,host,,en
+1398630422849607797,positive,amenities,,en
+1509539133906055893,positive,"cleanliness, host",,es
+1230510005204574509,positive,"amenities, safety, location, host",,en
+938471024781271973,positive,"host, amenities",,es
+669600757837489227,mixed,"location, host",amenities,pt
+1711814148840830535,positive,"location, host",,es
+1198655193673257302,positive,"host, cleanliness",,pt
+471999373,positive,"location, host",,pt
+1242031430696631236,positive,"location, host",,en
+1621197799362913959,positive,"location, host",,es
+1652260736820751860,positive,,,es
+1447168759712604284,positive,cleanliness,,es
+1488486576996810097,positive,"location, amenities, host",,es
+1523341238339019792,positive,"cleanliness, location",,es
+1291363118103034259,positive,location,,es
+1476892772778798781,positive,host,,es
+793407031054743648,positive,"cleanliness, amenities, host",,es
+886193741048822034,positive,"amenities, location",,es
+1707370186114885708,positive,host,,es
+1087767439777018342,positive,"value, location",,en
+1160183961828366009,positive,"location, host, amenities",,es
+587038884,positive,"location, host",,es
+703546206907973267,positive,"cleanliness, amenities, location",,es
+1049312748445184859,positive,host,,es
+334582778,positive,"host, location, safety",,es
+1418228470800614150,positive,"host, location",,es
+1703785545804071031,positive,,,es
+1490716256872940677,positive,cleanliness,,pt
+1357330931133039423,positive,"cleanliness, amenities, location, safety, noise",,es
+1706754803609266612,positive,host,,es
+1579105797463834544,positive,"location, cleanliness, host",,es
+758649090400098100,positive,"cleanliness, amenities",,es
+1585578575272618231,positive,,,es
+1243506276034627759,positive,location,,es
+1682725714931965814,positive,,,es
+1623331514072723052,positive,,,en
+1580557028275469141,positive,"cleanliness, amenities",,es
+1510196310996406189,positive,"location, cleanliness, host",,pt
+1145024066277050628,positive,"host, cleanliness, location",,es
+1164509366462550052,positive,,,es
+1487136035003674154,positive,host,,pt
+902914407498583045,positive,location,,pt
+1423317818277791281,positive,"safety, amenities, host",,en
+1484866972854911820,positive,,,fr
+1409544611224238551,positive,"location, cleanliness, amenities, host",,en
+540444181,positive,"host, cleanliness, location",,es
+750958011,positive,cleanliness,,es
+1406606373582759738,positive,,,es
+1341400822075620360,positive,"location, cleanliness, host",,en
+1297908106374300579,positive,"location, amenities",,en
+1708026092977085131,positive,,,es
+1418998258233094553,positive,"location, host",,es
+1555905689540148451,positive,"location, cleanliness, host",,es
+732525969580473317,positive,value,,en
+1369668203536951961,positive,"cleanliness, location, host",,es
+435435522855122798,positive,location,,es
+420355327,positive,host,,de
+1216697808769093584,positive,location,,es
+1618943341477952471,positive,"amenities, location",,es
+1332668608220159036,positive,"location, amenities, host",,es
+1260953858211124880,positive,host,,es
+1574801957782843811,positive,"amenities, host",,es
+257013139,positive,"cleanliness, host, noise, value",,fr
+1605190683288328763,positive,location,,es
+1479848105066535331,positive,"location, cleanliness",,es
+1652352735195408444,positive,"location, noise",,es
+1066696575952960605,positive,"location, cleanliness, amenities",,pt
+777530404573193688,positive,cleanliness,,es
+707088003,positive,amenities,,es
+1693474628636269822,positive,"noise, location",,es
+1678414577568874852,mixed,location,amenities,es
+1546490541553021699,positive,"cleanliness, location",,es
+1602981573681681849,positive,cleanliness,,es
+526054253,positive,"amenities, location, cleanliness, host",,es
+1106586430170319941,positive,"cleanliness, noise, location",,en
+412022547,positive,,,es
+1427633002565841840,positive,"host, cleanliness, noise, location, safety, host",,pt
+1525513548469775991,positive,"location, cleanliness, host",,es
+1429119398550119096,positive,host,,es
+1679871975481152287,positive,"amenities, host",,es
+1476932314111705869,positive,,,es
+1614593608417101715,positive,,,es
+1024659639781471926,positive,"location, noise, amenities",,es
+250548973,positive,"location, amenities",,de
+1532672720721988534,positive,host,,es
+1151534918505272802,positive,"location, cleanliness, amenities",,fr
+1055778771146898802,positive,location,,es
+1025377744747615285,positive,"cleanliness, amenities, location, amenities",value,pt
+1003649967116478591,positive,,,en
+705756603131817942,positive,,,es
+1703082752233078485,positive,amenities,,es
+1089932158586228797,positive,amenities,,es
+1616016177171804304,positive,"cleanliness, amenities",,es
+452060979,positive,"location, amenities",,es
+1499379621927398361,positive,amenities,,pt
+1050786426242674471,mixed,location,amenities,en
+647049069105610472,positive,"location, cleanliness, host, amenities",,es
+1272488582638411273,positive,cleanliness,,es
+1537749667715295033,mixed,,"amenities, cleanliness",es
+1621132841432712588,positive,"location, amenities",,es
+1700872669029279649,positive,"host, cleanliness, location",,es
+1530512260174825552,positive,"location, cleanliness",,es
+1078329752155788238,positive,"location, cleanliness",,es
+960202594374040983,positive,"host, cleanliness, amenities",,pt
+512712214,positive,host,,es
+528932030043456281,positive,location,,en
+1637075781738390504,positive,host,,es
+1106494499593514146,positive,amenities,,es
+1279005345112236724,positive,"cleanliness, location, host",,es
+1672605742252292877,positive,,,es
+1536325593843752483,positive,"location, amenities",,es
+1267465883769126494,positive,"host, cleanliness, location",,es
+99806129,positive,"host, amenities, location",,pt
+1641394931774164348,positive,host,,es
+1071047350023772492,positive,"location, host",,pt
+1459585743603374740,positive,"cleanliness, host, location",,es
+1279081919616588052,positive,"noise, location, host",,es
+1311690340797479875,positive,amenities,,es
+1298564163637267759,positive,"value, host",,es
+1596468472702815244,positive,,,es
+1540744822710119277,positive,"cleanliness, noise, location, amenities",,es
+753595510582761718,positive,,,es
+960858665602431941,positive,,,es
+1384894735850283712,positive,"noise, safety, host",,es
+1287800643417119193,positive,"noise, host",,es
+1437125980512815999,positive,,,en
+1546468065502321658,positive,"host, cleanliness",,es
+1492132467308364660,positive,"location, safety",,es
+664408300171085875,positive,"amenities, location, host",,en
+1484171883152999116,positive,"location, noise, cleanliness, host",,es
+329697394,positive,"host, amenities",,es
+1618204549772114477,positive,location,,pt
+661607510387742294,positive,,,es
+1682837166208817842,positive,location,,es
+1505891998575894551,positive,location,,es
+1506604682367373557,positive,"location, safety, host",,pt
+1345683241646782979,mixed,host,location,es
+1240701776785024125,positive,"location, amenities",,pt
+1437092143532754335,positive,"host, location",,es
+1377625874245117540,positive,"location, cleanliness, host",,es
+609432925991515972,mixed,"location, amenities",noise,en
+1698048627635368896,positive,"cleanliness, location, host",,es
+1573975620090130089,positive,"host, cleanliness, location",,es
+516598029630893623,positive,"location, cleanliness",amenities,pt
+1411705633702324208,positive,,,es
+1630541796127591510,positive,host,cleanliness,es
+930466764334503289,positive,"cleanliness, amenities, host",,en
+1638551249574022141,mixed,"location, amenities, value",cleanliness,de
+908052280610157515,positive,,,es
+346993476,positive,"location, safety, noise",,es
+1338443668176044943,mixed,"value, host","cleanliness, safety",es
+1026864981626266766,positive,"cleanliness, amenities",,es
+1545719547869105354,negative,,"cleanliness, host",es
+1673389007673272394,positive,cleanliness,,es
+1541426439311093887,positive,"amenities, location",,es
+825338394820387178,positive,"location, amenities, noise, host",,en
+1626921924875102988,positive,,amenities,es
+1515350863894645794,positive,,,es
+1570450149971128529,positive,host,,es
+502307902,positive,"location, amenities",,pt
+892046771526954921,positive,host,,es
+1404440631985079531,positive,"host, location, cleanliness",,es
+1332715512374478246,positive,"amenities, location",,en
+1450823726852881622,positive,"cleanliness, host",,es
+1684242354311747616,positive,"cleanliness, host, location",,es
+1197169134545009107,positive,host,,es
+1522600682111427616,positive,"location, cleanliness",,es
+1155184104585209637,positive,"location, host, value",,pt
+1250739766148332724,positive,"location, cleanliness, host",,pt
+1682722057144137267,positive,amenities,,en
+1033379481076334138,positive,"host, cleanliness, location",,es
+1485634916497165610,mixed,safety,"amenities, cleanliness",es
+1585674198995766688,positive,amenities,,es
+1491443116899681593,negative,,amenities,es
+1170371002589797700,positive,"location, value",amenities,pt
+668129813030876181,positive,location,,es
+1420458097391898509,positive,"cleanliness, amenities, host",,es
+1528413821386680014,positive,host,,pt
+708294388,positive,"host, location",,es
+1155133482926455700,positive,,,es
+1076156579993324291,positive,"host, safety",,en
+1463943504378757740,positive,"location, host",,es
+1702976351094594005,positive,host,,es
+1553700348275320224,positive,"location, noise",,es
+731529700,positive,"location, host",,es
+889104816716108837,positive,"host, location",,en
+1621922168132273409,positive,"location, noise, host",,es
+1533465804845320164,positive,"location, cleanliness",,es
+1187753618433463087,positive,,,es
+744906534129913909,positive,"location, amenities",,en
+796394061409199049,positive,"location, noise",,en
+1558043642353333996,positive,location,,es
+1029666163526841453,positive,host,,en
+1413141209677070581,positive,"location, noise",,es
+1600880574062249073,positive,"cleanliness, host, amenities, location",,es
+402062238231128870,positive,"location, value",,es
+1012366318293976831,positive,,,es
+1413179754307899087,positive,cleanliness,,es
+536129906168735402,mixed,"location, amenities, value",host,es
+916634673387547129,positive,location,,en
+1592127655844864641,positive,amenities,,en
+1506624557471716717,positive,"location, host, value",,pt
+1207994239123925813,positive,,,pt
+1329105391304331812,negative,cleanliness,amenities,es
+1161632388773454914,positive,"cleanliness, host, noise",,es
+217060098,positive,location,,pt
+684720941249425783,positive,"location, host",,es
+1363821778398624632,positive,"cleanliness, location",,en
+1642127390107596808,positive,cleanliness,,es
+1358045015872478030,positive,location,,es
+768097708,positive,"host, cleanliness, safety, location",,es
+1574089352637963726,positive,,,es
+715841941133306660,positive,location,,es
+551580342,positive,amenities,,es
+1532023135503241958,positive,"cleanliness, location",,es
+601791955,positive,"location, cleanliness, host",,pt
+1480533008515655403,positive,"location, value",,pt
+1621906572657921949,positive,"cleanliness, host, location",,es
+422041980,positive,"location, noise",,es
+1671888475334081172,positive,"location, safety, host",,en
+1195061741222995696,positive,,,es
+1529135730807756314,positive,"location, amenities",,es
+1558767746922239276,positive,"location, host",,es
+1494290239084423979,positive,"host, location, cleanliness",,pt
+1582739883085657780,positive,"location, host, noise",,en
+689140189365440182,mixed,"cleanliness, value","amenities, amenities",en
+1497222043230863854,positive,amenities,,pt
+1215248405489960730,positive,location,,pt
+1468234647679588228,positive,"host, location",,es
+1265235604555290637,positive,,,es
+202963976,positive,host,,es
+1113823778086789785,positive,location,,es
+1192866148983464146,positive,"amenities, host",,es
+1597969044661849651,positive,location,,es
+1562388793331470351,positive,"cleanliness, amenities",,es
+1534124952191429299,positive,"host, location, amenities",,es
+1063011298773001406,positive,location,,en
+1559533647488939207,positive,"amenities, location, host",,pt
+952199946736502907,positive,,,es
+1687129489310156661,positive,"location, cleanliness",,es
+1242817341587775996,positive,"host, amenities, location",,pt
+1594385130466377204,positive,"cleanliness, location, host",,es
+1279001475804936605,positive,"amenities, location, host",,en
+1256520001921235798,positive,location,,es
+1362350457131940243,positive,,,es
+1292136488712875775,positive,,,es
+1473353523690500223,positive,,,es
+1160236617855285022,positive,host,,es
+1189158026471776748,positive,"cleanliness, amenities, location",,es
+490523526181264395,positive,host,,es
+1437030986192059059,positive,,,es
+1487031681500150203,positive,location,,es
+1466085973631416833,positive,"amenities, cleanliness, location, value",,pt
+1676999297796862614,positive,"host, location",,fr
+1640754483898520065,positive,location,,es
+1718163670018074555,positive,"cleanliness, host",,es
+1514628799675553850,positive,"cleanliness, host",,pt
+681101335227541588,positive,"location, amenities",,es
+1150107596876692207,positive,,,en
+1647922063173739330,positive,"location, safety",,es
+1626983673862745323,positive,,,es
+565876783262743813,positive,host,,es
+1714560913562006706,mixed,,amenities,es
+397720322741454602,positive,,,es
+310511776,positive,,,pt
+1158803094907713438,mixed,"location, cleanliness",amenities,es
+1603769859785617363,mixed,"location, cleanliness",amenities,es
+578912385074621206,positive,noise,,es
+784746668673523035,positive,,,es
+1429148870794924717,positive,"host, location",,es
+206932634,positive,"host, location",,es
+1081908710660929525,positive,"cleanliness, amenities",,es
+647317774,positive,,,es
+1268137546893481499,positive,host,,es
+1472549308344088571,positive,,,es
+366380123,mixed,"cleanliness, location, host",,en
+1671174129355285802,positive,"location, noise, safety, cleanliness, value",,es
+609808127,positive,location,,es
+1479174821404096785,positive,host,,es
+1618930124600795862,positive,,,es
+735467158342603758,positive,,,es
+1346472887731200784,positive,"amenities, location",,fr
+1590710341999538902,positive,"location, cleanliness, noise, host",,en
+1623335039406825164,mixed,"safety, host",amenities,en
+477469581930460692,positive,,,es
+1472653300299965199,positive,location,,es
+18277091,positive,"location, amenities",,es
+1621185525829259422,positive,"cleanliness, location, host",,es
+1218888082741863509,positive,host,,es
+434769964224160335,positive,location,,es
+1577658838707512863,positive,"cleanliness, host",,es
+583287719,positive,,,en
+1129066164738439732,mixed,host,noise,es
+1629073751986946998,positive,location,,es
+1285595554945564637,positive,host,,es
+1121805414630387722,positive,,,es
+1633424308457800927,positive,amenities,,en
+1460315552677369636,positive,,,es
+1501562925345014360,positive,location,,pt
+1474048901321247560,positive,"location, host",,es
+1086246642075133082,positive,host,,es
+773196317900214820,positive,"location, cleanliness, host",noise,en
+1568224476166550547,positive,amenities,,es
+1293550006636703915,positive,host,,zh
+578382355,positive,"host, location, amenities",,en
+1609495539856221040,positive,location,,es
+195489604,positive,"location, host",,pt
+212361265,positive,host,,fr
+758066437,positive,"location, cleanliness, amenities",,es
+679683927151073058,positive,"location, amenities",,en
+753604442727331451,positive,"location, safety, amenities, host",,en
+1202277892116483568,positive,"host, cleanliness",,pt
+1529833600389789065,positive,location,,pt
+410030359843028164,positive,"amenities, location, host",,pt
+1369645914008193646,positive,"location, cleanliness, host",,es
+1222532395048170577,positive,,,pt
+147204408,positive,"location, amenities, host",noise,en
+1697887123303446153,positive,"host, cleanliness",,es
+957973054165327766,positive,"location, amenities, host",,pt
+733294192518462427,negative,,value,es
+1165304476291262667,mixed,location,"cleanliness, amenities",es
+1119609501654429250,positive,,,en
+1251544488085277369,mixed,"host, location, safety, amenities",cleanliness,es
+1494381374985194422,positive,,,es
+1412424435064035750,positive,"safety, location, cleanliness, host",,es
+1544312647752494814,positive,"host, amenities, location",,es
+1383467662660833163,positive,host,,es
+513715254479517887,mixed,location,amenities,es
+452769011968721291,positive,"cleanliness, amenities, host",,es
+1715918083617054570,positive,,,es
+1461697801614087995,positive,"location, host",,pt
+1237825492715033802,positive,"cleanliness, amenities",,es
+1189188013888873516,positive,"cleanliness, location, amenities",,pt
+1146476674925530698,positive,"location, amenities",,es
+1107997274582260183,positive,,,es
+44447626,positive,"location, cleanliness, host",,pt
+1097879735235320903,positive,"location, amenities",,en
+728919990136971877,positive,"amenities, location, safety",,es
+1626993568745812279,positive,amenities,,es
+851391665704049503,positive,,,es
+1202298488606373751,positive,amenities,,es
+808697379969890889,positive,host,,es
+865222747715349474,mixed,"amenities, location, cleanliness",noise,es
+1478429609278628289,positive,"location, cleanliness, amenities",,pt
+1069608048503705779,positive,"host, cleanliness, safety",,es
+1205191395594910152,positive,host,,es
+1003587437296785498,positive,"host, location",,pt
+1431267982891540892,positive,"location, host",,es
+1617517280548615724,positive,"cleanliness, amenities",,fr
+169664026,positive,"value, amenities, host, location",,pt
+1213084197473057022,positive,location,,pt
+1716789986337916331,positive,"location, amenities, host",,es
+1652976449506449906,positive,,,es
+422009386,positive,amenities,,en
+1337709141552070677,mixed,"amenities, location",noise,pt
+1562469472282720172,positive,,,es
+1322565357727111786,positive,host,,es
+1640007394007054966,positive,,,es
+1143489803817693678,positive,"location, amenities",,es
+1056494180953932571,positive,host,,es
+1538563855602153034,positive,host,,es
+762304459758163688,positive,"location, amenities, host",,en
+1368191700951549037,positive,"safety, location, host",,es
+1439946515325231023,positive,location,,es
+1677655896215095737,positive,"safety, host",,en
+1337018586598798960,positive,,,es
+521608936663870053,positive,"noise, host",,es
+757919118194129005,positive,host,,en
+1529104543435228683,positive,host,,es
+1700800728097712974,positive,,,es
+1236354246052175306,mixed,cleanliness,amenities,pt
+1421893660694506997,positive,host,,es
+348334073,positive,"location, safety, amenities, host",,es
+1177658980443377337,positive,"cleanliness, amenities, host",,fr
+1013005471358757678,positive,"location, host",,pt
+1124626251257753216,positive,"cleanliness, host, location, amenities",,es
+450636558074112781,mixed,"location, value","cleanliness, amenities",es
+337199903,mixed,,amenities,es
+1702948406053993941,positive,"noise, location",,es
+1574775812192429115,positive,"location, value, host",,es
+721518079,positive,"cleanliness, location, host",,es
+587569803297609126,positive,"location, safety, amenities",,es
+1398654724821704628,mixed,,noise,es
+1703644532112745940,positive,host,,pt
+1642185937923022062,positive,"location, cleanliness",,es
+1692911181654418907,positive,"host, location",,es
+471480639,positive,"cleanliness, host, location",,es
+1236353183709450588,positive,location,,es
+940667445585070323,positive,"cleanliness, amenities, location",,pt
+846380550729509070,positive,"host, location",,es
+1572050272216557209,positive,cleanliness,,es
+1241315193154796512,positive,"cleanliness, amenities, host, safety",,es
+931243721467253857,positive,"cleanliness, amenities, location, host",,es
+1468959656586658059,positive,"location, amenities",,es
+1633511148819994644,positive,"cleanliness, host",,es
+803611805142033360,positive,"host, cleanliness",,es
+1398661087211289083,positive,amenities,,es
+1546488984255266472,positive,"amenities, cleanliness, location",,en
+1581265659836005025,positive,host,,es
+1253645467950897377,positive,,,es
+412287970709283843,positive,"amenities, location",,es
+1658823976094614748,positive,"location, host",,en
+881946919813275449,positive,"host, amenities",,fr
+1260904153923660801,positive,"cleanliness, amenities",,es
+1534863706834731495,positive,"host, location",,es
+26262017,positive,"host, location, amenities",,es
+1672652306160113544,positive,"location, noise, cleanliness, host",,es
+1072486783162207212,negative,,"amenities, noise",es
+1527658643551398781,positive,"host, location, amenities",,fr
+1291389802175124001,positive,,,es
+1473258610902151919,positive,"location, safety, amenities",,es
+1553043152072637128,positive,"host, amenities, location",,he
+820265065119525932,positive,"amenities, location",,es
+1308809237270280151,positive,"location, safety, cleanliness",,es
+750717146644027392,positive,"cleanliness, amenities, host, safety",,es
+704841095,positive,"location, host, cleanliness, noise",,es
+1716664157994814296,positive,"location, host",,es
+1590669163132969266,positive,"cleanliness, location, host",,es
+647790039,positive,"location, amenities, safety",,es
+1468280142509967169,positive,"host, location, noise",,es
+1449393791282085907,positive,cleanliness,,es
+1597272987185402293,positive,amenities,,es
+1718108221161069988,positive,,,es
+1547974243057723620,positive,host,,es
+1543606708807146843,positive,"amenities, location",,es
+1295770459937864037,positive,"cleanliness, location, safety",,es
+1072533468960737956,mixed,,amenities,en
+1515345307253275653,positive,,,es
+1377634672797651826,positive,"location, safety, amenities, host",,pt
+1611706173291843408,positive,amenities,,es
+1373282429584434940,positive,"cleanliness, location",,es
+57138110,positive,"host, cleanliness, amenities, location",,pt
+1116013629713957895,positive,"location, host",,es
+1589301283104764185,positive,"cleanliness, amenities",,es
+1158094828856358449,positive,,,es
+1298638642643674216,positive,"location, amenities",,es
+1475475051794777790,positive,"host, location",,pt
+1682012667267598388,negative,,"cleanliness, host",es
+1339196107931677574,positive,"host, cleanliness",,es
+1100796801962558007,positive,"host, cleanliness, location, amenities",,pt
+1226136763291400383,positive,"host, cleanliness, amenities",,es
+1534929810317594931,positive,,,es
+474772397,positive,"host, location",,es
+939116905113279991,positive,"location, amenities, safety",,pt
+1342083199964656880,positive,"host, location",,es
+1065952025705316733,positive,"location, amenities, host",,en
+1698757037257908264,positive,"host, cleanliness",,pt
+1343517477996695239,positive,"host, cleanliness, location",,es
+1626988797923349650,mixed,,noise,es
+1529781988987537238,positive,cleanliness,,es
+1267432761905935147,negative,,"cleanliness, amenities, value",pt
+1449446450300373729,positive,host,,es
+617338423039848308,positive,"amenities, noise",,en
+653585141843286239,positive,"cleanliness, host",,es
+1208052030871292864,positive,host,,es
+1398717711698481420,positive,"cleanliness, amenities, location",,es
+1595752910328992351,positive,location,,es
+679012890170672696,positive,"host, cleanliness",,es
+1120991885137960775,mixed,host,location,en
+1561731862806082881,positive,"host, location",,es
+1276909600394692698,positive,"location, host",,es
+1281183542696615757,positive,"location, safety, host, cleanliness, amenities",,es
+935589582130410684,mixed,"host, cleanliness, location",noise,en
+1028257176322662002,positive,,,pt
+311142004,positive,"location, host",,es
+16775920,positive,,,es
+1603796992041617457,positive,"location, host",,es
+1711814400595664328,positive,location,,es
+1472643118484929482,positive,value,,es
+1595741535571839579,positive,"location, amenities, cleanliness",,es
+1661815049453613400,positive,,,es
+1642887163653510056,positive,"location, amenities",,es
+329310587,positive,"location, host",,es
+580323241,positive,"location, cleanliness",,pt
+1574715477116919000,positive,"location, host, amenities",,es
+1289186067352298317,positive,,,es
+1263820176723727364,positive,"location, host",,es
+1617471252486082727,positive,amenities,,es
+1298576638559066731,positive,,,es
+1115299165703898626,positive,"cleanliness, amenities, host",,es
+1275413501919582852,positive,"host, cleanliness",,es
+1450118320451686886,positive,amenities,,pt
+1609583024939038049,positive,"host, amenities, location",,es
+1073948592036198090,positive,"location, host",,es
+1336312487690346098,positive,"cleanliness, host, amenities",,es
+762556088,positive,,,es
+1552328626604684778,positive,host,,en
+1586329871241605318,mixed,"amenities, host","location, host",es
+1152932827393126895,negative,host,"cleanliness, amenities",es
+1393627112497847567,positive,,,es
+1616081718289310591,mixed,"amenities, location",noise,en
+1398692185819882638,positive,location,,es
+1567566926129721489,positive,"safety, cleanliness",,es
+1553054585987699545,positive,host,,es
+942036433030331222,positive,,,es
+966702850344764988,positive,"location, noise, cleanliness",,es
+611622173,positive,host,,es
+1259426576810969523,positive,,,es
+1322516460530911255,positive,"amenities, cleanliness, host",,es
+1612497726641420910,mixed,amenities,"host, location",es
+1534844957271073498,negative,,host,es
+546980462255939790,positive,"host, location, amenities",,en
+1631320248540352481,positive,,,es
+560056365169455225,positive,"location, safety",,es
+566463092,mixed,location,"host, value, cleanliness",pt
+795648625409693477,positive,host,,en
+1478397591811193394,positive,location,,es
+1354375874017115071,positive,,,es
+1120361544593194442,positive,"amenities, location, host",,en
+1600105695272172050,positive,"safety, noise, cleanliness, amenities, location, host",,es
+1624016015205488629,positive,,,es
+1180463416340462082,positive,"cleanliness, location",,es
+1671957228619206856,positive,location,,es
+1600182289391932590,positive,"host, location, amenities",,es
+1691990979286316302,positive,"host, amenities",,es
+1652306171782123451,positive,"location, value",,es
+955823578558471286,positive,"host, cleanliness, amenities",,pt
+1526158010980583670,positive,,,es
+1038404400089904801,positive,,,es
+1276875125926383184,positive,"location, host",,es
+1414587354015213896,positive,host,,es
+1145745840890328483,mixed,,amenities,es
+657061928,positive,location,,es
+1610288696257218580,positive,host,,en
+1667532453605341160,positive,"cleanliness, host",,es
+1289254831682729967,positive,"host, location, cleanliness",,en
+561033915,positive,host,,fr
+1550865089359474071,positive,host,,es
+1509545914552874555,positive,"host, cleanliness, safety, location",,en
+1384092988409980122,positive,"cleanliness, location",,en
+1558782436214551168,positive,host,,pt
+1007259399359572841,positive,,,en
+490542946826377959,positive,cleanliness,,es
+1173262134978498756,positive,cleanliness,,pt
+1623306923125751354,positive,host,,es
+193713878,mixed,"location, host",noise,en
+885510857632429728,mixed,cleanliness,host,es
+1540636285834698417,positive,,,es
+252411634,positive,"cleanliness, host",,es
+1638595745300972623,positive,"location, noise, safety",,es
+514701014,positive,,,es
+1376148100422498964,positive,"location, host",,es
+883401088190412592,positive,"location, value, host",,es
+785502462718667988,positive,"cleanliness, location",,pt
+1368226978018087500,positive,"location, host",,es
+1570413685518760595,positive,"cleanliness, amenities, location, host",,es
+1162430812977299564,positive,"host, amenities, location",,es
+1384167817725022297,positive,"host, location",,es
+282179022,positive,"location, host, noise",,pt
+1125376748389678682,positive,cleanliness,,es
+1350044879457729278,positive,host,,en
+1499453230247489050,positive,"location, host, amenities",,pt
+826765201021600729,positive,amenities,,en
+1284076769258188229,positive,"location, cleanliness, host",,en
+1413854512611619768,mixed,location,"amenities, amenities",es
+1273279135442725115,positive,"host, location",,pt
+387553697702880279,positive,cleanliness,,es
+808613953665122658,positive,amenities,,pt
+1229073257772517707,positive,"location, amenities",,es
+1615309796417515859,positive,"location, host",,es
+1236329494113705571,positive,host,,en
+1589282985805886432,mixed,location,cleanliness,pt
+1379125846935314371,positive,"location, cleanliness",,es
+1433426109494201355,positive,"cleanliness, host",,es
+269011898,positive,amenities,,es
+1159433315328874117,positive,"amenities, host",,es
+1366049239822056079,positive,,,es
+1475507044601232063,mixed,value,location,pt
+1184851868649094502,positive,amenities,,es
+1270299704930611977,positive,host,,es
+1611748970532850734,positive,host,,es
+1566117518609884223,positive,location,,es
+1597252281097352097,positive,"location, host",,es
+1614643549787902796,positive,,,en
+687631617233925165,mixed,location,amenities,es
+1218168228790462221,positive,"cleanliness, host",,es
+1168202695135455149,positive,host,,en
+729723361470636660,positive,location,,es
+1669789146369039976,positive,"cleanliness, location",,es
+1524023563172384199,positive,"location, host",amenities,en
+1300771027116816407,positive,"cleanliness, amenities, location, host",,pt
+731104184,positive,"location, cleanliness, host",,es
+1464628926740237413,negative,,value,es
+1657427851063807382,positive,host,,pt
+1664631420479069698,positive,,,es
+1334842146043513501,positive,"location, safety, cleanliness, amenities, host",,es
+697865334266533120,positive,"amenities, host, location",,es
+1651558316172723879,positive,"amenities, cleanliness",,pt
+1511752851153361510,positive,"safety, location",,es
+559321541450102045,positive,host,,es
+1458835870013090512,positive,,,es
+510748277199775197,positive,location,,es
+1342153774206992491,positive,host,,es
+1189173588823218031,positive,host,,pt
+1516065157756644871,positive,"host, cleanliness, location",,pt
+1391357796877140893,positive,"location, host",,es
+1275438400513441315,positive,"host, cleanliness, noise",,es
+1393644795965335203,positive,location,,es
+1116025451204135595,positive,,,en
+270194228,positive,location,,pt
+293566537,positive,,,es
+1313839322468495225,positive,"cleanliness, host",,es
+954360718414196754,positive,"location, noise, safety",,es
+1532022368423613352,positive,cleanliness,,pt
+1392812593865481647,positive,host,,es
+1437764249804071000,positive,,,es
+1464580247428758272,positive,"location, safety",,pt
+803570323820881076,positive,,,es
+1007952636300013291,positive,"host, safety, location",,es
+928264011765368744,mixed,"amenities, host",safety,es
+898558765803774479,positive,"noise, amenities, host, value",,pt
+852117060004095293,positive,"host, safety, location",,es
+485349285,positive,host,,es
+449868151375028127,positive,amenities,,es
+921015327186843461,positive,"location, amenities",,es
+1243490690815222053,positive,"cleanliness, location, host",,pt
+1560245187564510935,positive,location,,es
+602160676440789766,positive,"location, amenities",,es
+1649349201282581699,positive,cleanliness,,es
+1505172711881412907,positive,"cleanliness, noise, safety, location",,es
+1645811550079805195,positive,,,es
+1446498901596104657,positive,location,,es
+1558838046308695265,positive,"location, host",,es
+1231975824187838492,positive,host,,es
+1539267533499987677,positive,"host, amenities, location",,pt
+1462433904458911381,positive,"cleanliness, location, host, safety",,pt
+1715339687467566707,positive,"location, cleanliness, amenities",,es
+1283430044267943548,positive,"location, host",,en
+840549470855988459,mixed,"amenities, location",noise,es
+476651909,positive,location,,en
+1446487064375190541,positive,"cleanliness, location",,pt
+1661013611604246671,positive,,,es
+983370705099728504,positive,"location, safety, cleanliness, amenities",,pt
+1364604592308364393,positive,,,es
+1449369040342306081,mixed,value,amenities,es
+947104764441086722,positive,"location, cleanliness, noise, host",,es
+1500165026201378605,positive,"location, host",,es
+905872215896410448,positive,"location, cleanliness, amenities",,es
+763697173025796483,positive,host,,en
+404029702,positive,location,,es
+1175429644432220675,positive,host,,es
+524770854,positive,"host, location",,pt
+1442115877106186589,mixed,"host, safety, location, value",cleanliness,es
+605086866,positive,host,,es
+1549390782611328503,positive,"location, safety",,es
+668076253,positive,,,es
+1023975219629288333,negative,,host,es
+1637062908557088247,positive,amenities,,es
+1282659994377220680,positive,,,es
+1281952509300372655,positive,location,,es
+1142777686682759924,positive,"cleanliness, location",,en
+1281999343008386646,positive,"location, safety, host",,es
+859397371660245374,positive,host,,es
+1597903234294346541,positive,"location, amenities",,es
+1483514362173282269,positive,host,,es
+615907354140613192,positive,"host, cleanliness",,es
+774577936041664000,positive,,,es
+1444371656007818632,positive,host,,pt
+1228290146890341597,positive,"location, value",,en
+900000616540064797,positive,"cleanliness, noise",,es
+1595026824157070862,positive,"cleanliness, location",,es
+1453028760426933554,positive,amenities,,es
+865979887919857896,positive,value,,es
+1643653715337854765,positive,"location, noise, host, cleanliness",,es
+731535113,mixed,"location, amenities, host",cleanliness,es
+1718103841904853745,positive,location,,es
+946409167543223151,positive,location,,es
+1474720912109755437,positive,,,es
+1114497190196902742,positive,,,es
+483293621728459624,positive,location,,es
+412393126,positive,"location, amenities",,en
+1479863757343155413,positive,host,,es
+1672585498187897201,positive,host,,es
+1697066936977889593,positive,host,,es
+1235554139215160617,positive,,,es
+885549828697467814,positive,"location, amenities, host",,es
+1717374820723489578,positive,"cleanliness, noise",,es
+1690036107223027478,positive,amenities,,es
+1629848162016281596,positive,location,,es
+1411039637423713596,positive,,,es
+1007207698111029779,positive,"cleanliness, host",,en
+108274488,positive,"host, safety, cleanliness, location",,en
+394149722803087814,mixed,host,,es
+1705770829821026957,positive,,,es
+1501561105236286031,positive,host,,es
+1418930062018556209,positive,"location, amenities, host",,es
+1073926222110108545,positive,"location, noise",,es
+1347901168537327555,mixed,host,,es
+1446469166617836633,positive,location,,es
+1652297658724599367,positive,"safety, host, noise, cleanliness",,zh
