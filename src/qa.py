@@ -1,12 +1,51 @@
-import pandas as pd
-import argparse
-import numpy as np
 from pathlib import Path
-import os 
 import gzip
+import os
+import pandas as pd
 import requests
-import shutil
 import yaml
+
+SHEET_ID = "1xaMiF78Ta90IWm2oHESKD35IHCGEcOMbGiYfUbmiwxA"
+DATASET_ID = "DSE2049-C04-G09-santiago"
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_DIR = PROJECT_ROOT / "data" / "raw" / "phan_cong"
+FLAGGED_DIR = PROJECT_ROOT / "data" / "processed" / "flagged"
+REPORT_DIR = PROJECT_ROOT / "reports"
+CONFIG_PATH = PROJECT_ROOT / "configs" / "santiago.yaml"
+
+SHEETS = {
+    "listing": 454441734,
+    "review": 2096394307,
+    "area": 903142397,
+}
+TABLE_FILES = {
+    "listings": ("listings.csv.gz", ["id"]),
+    "calendar": ("calendar.csv.gz", ["listing_id", "date"]),
+    "reviews": ("reviews.csv.gz", ["id"]),
+}
+
+REQUIRED_COLUMNS = {
+    "listings": {
+        "id",
+        "neighbourhood_cleansed",
+        "room_type",
+        "number_of_reviews",
+        "price",
+        "latitude",
+        "longitude",
+    },
+    "calendar": {
+        "listing_id",
+        "date",
+        "available",
+    },
+    "reviews": {
+        "id",
+        "date",
+        "comments",
+    },
+}
 
 # rules: name - condition - reason - todo (ưu tiên gắn cờ)
 RULES = [
@@ -85,7 +124,12 @@ RULES = [
         "reason": "Không thể phân tích review theo thời gian",
         "todo": "Gắn cờ",
     },
-
+    {
+        "name": "invalid_area",
+        "condition": "tọa độ của id không khớp tọa độ vùng",
+        "reason": "không thể vẽ biểu đồ vùng chính xác",
+        "todo": "Gắn cờ",
+    },
     # ngoại lai
     {
         "name": "outlier_price",
@@ -127,121 +171,156 @@ RULES = [
     },
 ]
 
-SHEET_ID = "1xaMiF78Ta90IWm2oHESKD35IHCGEcOMbGiYfUbmiwxA"
-project_root = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = project_root / "data" / "raw" / "phan_cong"
-SHEETS = {
-    "listing": 454441734,
-    "review": 2096394307,
-    "area": 903142397,
-}
+def replace(temp_path, output_path):
+    os.replace(temp_path, output_path)
+
+def _write_csv(data, output_path, compressed=False):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = output_path.with_name(output_path.name + ".tmp")
+    try:
+        data.to_csv(
+            temp_path,
+            index=False,
+            encoding="utf-8",
+            compression="gzip" if compressed else None,)
+        replace(temp_path, output_path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+def _read_csv(path):
+    if not path.is_file():
+        raise FileNotFoundError(f"Không tìm thấy file: {path}")
+    return pd.read_csv(
+        path,
+        dtype=str,
+        keep_default_na=False,)
+
+def _read_config():
+    if not CONFIG_PATH.is_file():
+        raise FileNotFoundError(
+            f"Không tìm thấy file cấu hình: {CONFIG_PATH}")
+    with CONFIG_PATH.open(encoding="utf-8") as file:
+        config = yaml.safe_load(file)
+    if not isinstance(config, dict):
+        raise ValueError("File YAML không chứa cấu hình hợp lệ")
+    return config
+
+def _validate_snapshots(config):
+    snapshots = config.get("snapshots")
+    if not isinstance(snapshots, list) or len(snapshots) != 4:
+        raise ValueError(
+            "Cấu hình phải chứa đúng 4 snapshot")
+    if len(set(snapshots)) != 4:
+        raise ValueError("Danh sách snapshot bị trùng")
+    if any(not isinstance(s, str) or not s.strip() for s in snapshots):
+        raise ValueError("Tên snapshot không hợp lệ")
+    return snapshots
+
+def _validate_columns(data, required, path):
+    missing = required - set(data.columns)
+    if missing:
+        raise ValueError(f"{path} thiếu các cột: {sorted(missing)}")
 
 def download_sheet(name, gid):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    url = (
-        f"https://docs.google.com/spreadsheets/d/"
-        f"{SHEET_ID}/export?format=csv&gid={gid}"
-    )
+    url = (f"https://docs.google.com/spreadsheets/d/"f"{SHEET_ID}/export?format=csv&gid={gid}")
     output_path = OUTPUT_DIR / f"{name}.csv.gz"
-    response = requests.get(url, stream=True, timeout=60)
-    response.raise_for_status()
-    with gzip.open(output_path, "wb") as file:
-        for chunk in response.iter_content(chunk_size=1024 * 1024):
-            if not chunk:
-                continue
-            file.write(chunk)
+    temp_path = output_path.with_name(output_path.name + ".tmp")
+    try:
+        response = requests.get(
+            url,
+            stream=True,
+            timeout=60,)
+        response.raise_for_status()
+        downloaded = 0
+        with gzip.open(temp_path, "wb") as file:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    file.write(chunk)
+                    downloaded += len(chunk)
+        if downloaded == 0:
+            raise ValueError(f"Google Sheets trả về dữ liệu rỗng: {name}")
+        replace(temp_path, output_path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
 
-def phan_cong():
-    dataset_id = "DSE2049-C04-G09-santiago"
-    config_path = project_root / "configs" / "santiago.yaml"
-    with config_path.open(encoding="utf-8") as file:
-        config = yaml.safe_load(file)
 
-    assignment_listing = pd.read_csv(
-        OUTPUT_DIR / "listing.csv.gz", dtype=str, keep_default_na=False
-    )
-    assignment_review = pd.read_csv(
-        OUTPUT_DIR / "review.csv.gz", dtype=str, keep_default_na=False
-    )
-    snapshots = config["snapshots"]
-    if len(snapshots) != 4:
-        raise ValueError("configs/*.yaml phải có đúng 4 snapshot")
+def _load_assignments():
+    for name, gid in SHEETS.items():
+        path = OUTPUT_DIR / f"{name}.csv.gz"
+        if not path.is_file():
+            download_sheet(name, gid)
 
-    required_listing_columns = {"Mã dữ liệu", "listing_id"}
-    required_review_columns = {"Mã dữ liệu", "review_id"}
-    missing_listing_columns = required_listing_columns - set(assignment_listing.columns)
-    missing_review_columns = required_review_columns - set(assignment_review.columns)
-    if missing_listing_columns or missing_review_columns:
-        raise ValueError(
-            "Sheet phân công thiếu cột: "
-            f"listing={sorted(missing_listing_columns)}, "
-            f"review={sorted(missing_review_columns)}"
-        )
+    listing = _read_csv(OUTPUT_DIR / "listing.csv.gz")
+    review = _read_csv(OUTPUT_DIR / "review.csv.gz")
 
-    assigned_listing_ids = set(
-        assignment_listing.loc[
-            assignment_listing["Mã dữ liệu"].str.strip().eq(dataset_id), "listing_id"
-        ]
-    )
-    assigned_review_ids = set(
-        assignment_review.loc[
-            assignment_review["Mã dữ liệu"].str.strip().eq(dataset_id), "review_id"
-        ]
-    )
-    if not assigned_listing_ids or not assigned_review_ids:
-        raise ValueError(f"Không tìm thấy phân công cho mã dữ liệu {dataset_id}")
+    _validate_columns(listing,{"Mã dữ liệu", "listing_id", "analysis_area"},"listing.csv.gz",)
+    _validate_columns(review,{"Mã dữ liệu", "review_id"},"review.csv.gz",)
 
+    listing = listing.loc[listing["Mã dữ liệu"].str.strip().eq(DATASET_ID)].copy()
+    review = review.loc[review["Mã dữ liệu"].str.strip().eq(DATASET_ID)].copy()
+
+    listing["listing_id"] = listing["listing_id"].str.strip()
+    listing["analysis_area"] = listing["analysis_area"].str.strip()
+    review["review_id"] = review["review_id"].str.strip()
+
+    listing = listing.loc[listing["listing_id"].ne("")]
+    review = review.loc[review["review_id"].ne("")]
+
+    listing_ids = set(listing["listing_id"])
+    review_ids = set(review["review_id"])
+
+    if not listing_ids or not review_ids:
+        raise ValueError(f"Không tìm thấy phân công hợp lệ cho {DATASET_ID}")
+    return listing_ids, review_ids
+
+def phan_cong(config):
+    snapshots = _validate_snapshots(config)
+    listing_ids, review_ids = _load_assignments()
     source_names = {
-        "listings": ("listings.csv.gz", "id", assigned_listing_ids),
-        "calendar": ("calendar.csv.gz", "listing_id", assigned_listing_ids),
-        "reviews": ("reviews.csv.gz", "id", assigned_review_ids),
+        "listings": ("listings.csv.gz","id",listing_ids,),
+        "calendar": ("calendar.csv.gz","listing_id",listing_ids,),
+        "reviews": ("reviews.csv.gz","id",review_ids,),
     }
+
     for snapshot in snapshots:
-        source_dir = project_root / config["raw_dir"] / snapshot
+        source_dir = PROJECT_ROOT / config["raw_dir"] / snapshot
         output_dir = OUTPUT_DIR / snapshot
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        for source_name, key, assigned_ids in source_names.values():
-            source_path = source_dir / source_name
-            if not source_path.is_file():
-                raise FileNotFoundError(source_path)
-            source = pd.read_csv(source_path, dtype=str, keep_default_na=False)
-            if key not in source.columns:
-                raise ValueError(f"{source_path} thiếu cột khóa {key}")
-            filtered = source[source[key].isin(assigned_ids)]
-            filtered.to_csv(
-                output_dir / source_name, index=False, compression="gzip"
-            )
+        for table, (filename, key, assigned_ids) in source_names.items():
+            source_path = source_dir / filename
+            source = _read_csv(source_path)
 
-FLAGGED_DIR = project_root / "data" / "processed" / "flagged"
-TABLE_FILES = {
-    "listings": ("listings.csv.gz", ["id"]),
-    "calendar": ("calendar.csv.gz", ["listing_id", "date"]),
-    "reviews": ("reviews.csv.gz", ["id"]),
-}
+            if key not in source.columns:
+                raise ValueError(f"{source_path} thiếu cột khóa '{key}'")
+            
+            mask = (source[key].astype("string").str.strip().isin(assigned_ids))
+            filtered = source.loc[mask].copy()
+            output_path = output_dir / filename
+
+            _write_csv(filtered,output_path,compressed=True,)
 
 def _is_missing(series):
-    values = series.astype("string").str.strip().str.lower()
-    return series.isna() | values.isin(["", "none", "null", "nan"])
+    values = (series.astype("string").str.strip().str.lower())
+    return (series.isna() | values.isin(["", "none", "null", "nan"]))
 
-def _read_config():
-    with (project_root / "configs" / "santiago.yaml").open(encoding="utf-8") as file:
-        return yaml.safe_load(file)
 
-def _read_inputs(config):
-    inputs = {}
-    for snapshot in config["snapshots"]:
-        inputs[snapshot] = {}
-        for table, (filename, keys) in TABLE_FILES.items():
-            path = OUTPUT_DIR / snapshot / filename
-            if not path.is_file():
-                raise FileNotFoundError(path)
-            data = pd.read_csv(path, dtype=str, keep_default_na=False)
-            missing_keys = set(keys) - set(data.columns)
-            if missing_keys:
-                raise ValueError(f"{path} thiếu cột khóa {sorted(missing_keys)}")
-            inputs[snapshot][table] = data
-    return inputs
+def _numeric_price(series):
+    cleaned = (series.astype("string").str.replace(r"[$,]", "", regex=True).str.strip())
+    return pd.to_numeric(cleaned,errors="coerce",)
+
+
+def _numeric_coordinate(series):
+    cleaned = (series.astype("string").str.strip().str.replace(",", ".", regex=False))
+    return pd.to_numeric(cleaned,errors="coerce",)
+
+
+def _add_flag(flags, name, values):
+    flags[name] = (pd.Series(values, index=flags.index).fillna(False).astype(bool))
+
 
 def _new_flags(data, keys):
     flags = data[keys].copy()
@@ -249,21 +328,93 @@ def _new_flags(data, keys):
         flags[key] = flags[key].astype(str)
     return flags
 
-def _add_flag(flags, name, values):
-    flags[name] = pd.Series(values, index=flags.index, dtype=bool)
+def _read_inputs(config):
+    inputs = {}
+    for snapshot in _validate_snapshots(config):
+        inputs[snapshot] = {}
+        for table, (filename, keys) in TABLE_FILES.items():
+            path = OUTPUT_DIR / snapshot / filename
+            data = _read_csv(path)
+            required = (REQUIRED_COLUMNS[table] | set(keys))
+            _validate_columns(data,required,path,)
+            inputs[snapshot][table] = data
+    return inputs
 
-def _numeric_price(series):
-    cleaned = series.astype("string").str.replace(r"[$,]", "", regex=True).str.strip()
-    return pd.to_numeric(cleaned, errors="coerce")
+def _read_assignment_areas():
+    assignment = _read_csv(OUTPUT_DIR / "listing.csv.gz")
+    required = {"Mã dữ liệu","listing_id","analysis_area",}
+    _validate_columns(assignment,required,"listing.csv.gz",)
+
+    assignment = assignment.loc[assignment["Mã dữ liệu"].str.strip().eq(DATASET_ID),["listing_id", "analysis_area"],].copy()
+    assignment["listing_id"] = (assignment["listing_id"].str.strip())
+    assignment["analysis_area"] = (assignment["analysis_area"].str.strip())
+    assignment = assignment.loc[assignment["listing_id"].ne("")]
+    area_count = (assignment.groupby("listing_id")["analysis_area"].nunique())
+
+    if area_count.gt(1).any():
+        raise ValueError("Một listing_id được phân công vào nhiều analysis_area")
+    return (assignment.drop_duplicates("listing_id").set_index("listing_id")["analysis_area"])
+
+
+def _read_area_bounds(config):
+    path = OUTPUT_DIR / "area.csv.gz"
+    area = _read_csv(path)
+    required = {"Thành phố","analysis_area","lon_min","lat_min","lon_max","lat_max",}
+    _validate_columns(area, required, path)
+
+    area = area.loc[area["Thành phố"].str.strip().eq(str(config["city"]).strip())].copy()
+    if area.empty:
+        raise ValueError(f"Không tìm thấy khu vực của thành phố {config['city']}")
+
+    area["analysis_area"] = (area["analysis_area"].str.strip())
+    if area["analysis_area"].eq("").any():
+        raise ValueError("Sheet area có analysis_area bị thiếu")
+    if area["analysis_area"].duplicated().any():
+        raise ValueError("Sheet area có analysis_area bị trùng")
+
+    columns = ["lon_min","lat_min","lon_max","lat_max",]
+    for column in columns:
+        area[column] = _numeric_coordinate(area[column])
+    if area[columns].isna().any().any():
+        raise ValueError("Sheet area có tọa độ min-max không hợp lệ")
+    if (area["lon_min"].gt(area["lon_max"]).any() or area["lat_min"].gt(area["lat_max"]).any()):
+        raise ValueError("Tọa độ min-max của area không hợp lệ")
+
+    return area.set_index("analysis_area")
+
+def _invalid_area_coordinates(listings,assignment_areas,area_bounds,):
+    listing_ids = (listings["id"].astype(str).str.strip())
+    assigned_areas = listing_ids.map(assignment_areas)
+    latitude = _numeric_coordinate(listings["latitude"])
+    longitude = _numeric_coordinate(listings["longitude"])
+
+    lat_min = assigned_areas.map(area_bounds["lat_min"])
+    lat_max = assigned_areas.map(area_bounds["lat_max"])
+    lon_min = assigned_areas.map(area_bounds["lon_min"])
+    lon_max = assigned_areas.map(area_bounds["lon_max"])
+
+    return (
+        assigned_areas.isna()
+        | latitude.isna()
+        | longitude.isna()
+        | lat_min.isna()
+        | lat_max.isna()
+        | lon_min.isna()
+        | lon_max.isna()
+        | latitude.lt(lat_min)
+        | latitude.gt(lat_max)
+        | longitude.lt(lon_min)
+        | longitude.gt(lon_max)
+    )
 
 def _build_flag_frames():
     config = _read_config()
     inputs = _read_inputs(config)
+    assignment_areas = _read_assignment_areas()
+    area_bounds = _read_area_bounds(config)
+
     frames = {
-        snapshot: {
-            table: _new_flags(data, TABLE_FILES[table][1])
-            for table, data in tables.items()
-        }
+        snapshot: {table: _new_flags(data,TABLE_FILES[table][1],) for table, data in tables.items()} 
         for snapshot, tables in inputs.items()
     }
 
@@ -271,7 +422,9 @@ def _build_flag_frames():
     for tables in inputs.values():
         review_ids = tables["reviews"]["id"]
         for review_id in review_ids.drop_duplicates():
-            review_snapshot_count[review_id] = review_snapshot_count.get(review_id, 0) + 1
+            if not review_id.strip():
+                continue
+            review_snapshot_count[review_id] = (review_snapshot_count.get(review_id, 0) + 1)
 
     for snapshot, tables in inputs.items():
         listings = tables["listings"]
@@ -281,153 +434,98 @@ def _build_flag_frames():
         calendar_flags = frames[snapshot]["calendar"]
         review_flags = frames[snapshot]["reviews"]
 
-        # Missing values.
-        for rule_name, column in {
+        # missing
+        missing_columns = {
             "missing_neigh_cleansed": "neighbourhood_cleansed",
             "missing_room_type": "room_type",
             "missing_number_of_reviews": "number_of_reviews",
             "missing_price": "price",
-        }.items():
-            _add_flag(listing_flags, rule_name, _is_missing(listings[column]))
-        _add_flag(review_flags, "missing_review_date", _is_missing(reviews["date"]))
-        _add_flag(review_flags, "missing_review_text", _is_missing(reviews["comments"]))
+        }
 
-        # Invalid types and categories.
-        review_count = listings["number_of_reviews"].astype("string").str.strip()
-        _add_flag(
-            listing_flags,
-            "invalid_reviews_num",
-            review_count.ne("") & ~review_count.str.fullmatch(r"\d+", na=False),
-        )
-        accepted_room_types = {"Entire home/apt", "Private room", "Shared room", "Hotel room"}
-        _add_flag(
-            listing_flags,
-            "invalid_room_type",
-            ~_is_missing(listings["room_type"]) & ~listings["room_type"].isin(accepted_room_types),
-        )
+        for rule_name, column in missing_columns.items():
+            _add_flag(listing_flags,rule_name,_is_missing(listings[column]),)
+
+        _add_flag(review_flags,"missing_review_date",_is_missing(reviews["date"]),)
+        _add_flag(review_flags,"missing_review_text",_is_missing(reviews["comments"]),)
+
+        # invalid
+        review_count = (listings["number_of_reviews"].astype("string").str.strip())
+        missing_review_count = _is_missing(listings["number_of_reviews"])
+        _add_flag(listing_flags,"invalid_reviews_num",(~missing_review_count & ~review_count.str.fullmatch(r"\d+",na=False,)),)
+
+        accepted_room_types = {
+            "Entire home/apt",
+            "Private room",
+            "Shared room",
+            "Hotel room",
+        }
+        room_type = (listings["room_type"].astype("string").str.strip())
+        _add_flag(listing_flags,"invalid_room_type",(~_is_missing(listings["room_type"]) & ~room_type.isin(accepted_room_types)),)
+
         price = _numeric_price(listings["price"])
-        _add_flag(listing_flags, "invalid_price", ~_is_missing(listings["price"]) & price.isna())
-        _add_flag(
-            calendar_flags,
-            "invalid_calendar_date",
-            ~_is_missing(calendar["date"]) & pd.to_datetime(calendar["date"], errors="coerce").isna(),
-        )
-        _add_flag(
-            calendar_flags,
-            "invalid_calendar_available",
-            ~_is_missing(calendar["available"]) & ~calendar["available"].str.lower().isin({"t", "f"}),
-        )
-        _add_flag(
-            review_flags,
-            "invalid_review_date",
-            ~_is_missing(reviews["date"]) & pd.to_datetime(reviews["date"], errors="coerce").isna(),
-        )
+        _add_flag(listing_flags,"invalid_price",(~_is_missing(listings["price"]) & price.isna()),)
 
-        # Price outliers by snapshot using the IQR rule.
+        calendar_date_missing = _is_missing(calendar["date"])
+        calendar_date = pd.to_datetime(calendar["date"],errors="coerce",)
+        _add_flag(calendar_flags,"invalid_calendar_date",(~calendar_date_missing & calendar_date.isna()),)
+
+        available = (calendar["available"].astype("string").str.strip().str.lower())
+        _add_flag(calendar_flags,"invalid_calendar_available",(~_is_missing(calendar["available"]) & ~available.isin({"t", "f"})),)
+
+        review_date_missing = _is_missing(reviews["date"])
+        review_date = pd.to_datetime(reviews["date"],errors="coerce",)
+        _add_flag(review_flags,"invalid_review_date",(~review_date_missing & review_date.isna()),)
+        _add_flag(listing_flags,"invalid_area",_invalid_area_coordinates(listings,assignment_areas,area_bounds,),)
+
+        # outlier
         valid_price = price.dropna()
         if valid_price.empty:
-            outlier_price = pd.Series(False, index=listings.index)
+            outlier_price = pd.Series(False,index=listings.index,)
         else:
             q1, q3 = valid_price.quantile([0.25, 0.75])
             iqr = q3 - q1
-            outlier_price = (price < q1 - 1.5 * iqr) | (price > q3 + 1.5 * iqr)
-        _add_flag(listing_flags, "outlier_price", outlier_price.fillna(False))
+            lower = q1 - 1.5 * iqr
+            upper = q3 + 1.5 * iqr
 
-        # Duplicates inside a snapshot.
-        _add_flag(listing_flags, "dup_listing_id", listings["id"].duplicated(keep=False))
-        _add_flag(
-            calendar_flags,
-            "dup_cal_key",
-            calendar.duplicated(subset=["listing_id", "date"], keep=False),
-        )
-        _add_flag(review_flags, "dup_review_id_in_snapshot", reviews["id"].duplicated(keep=False))
-        _add_flag(
-            review_flags,
-            "dup_review_id_across_snapshots",
-            reviews["id"].map(review_snapshot_count).fillna(0).gt(1),
-        )
+            outlier_price = ((price < lower) | (price > upper))
+        _add_flag(listing_flags,"outlier_price",outlier_price,)
 
-        # Calendar completeness: 365 rows per listing in each snapshot.
-        days = calendar.groupby("listing_id").size()
-        mismatch = calendar["listing_id"].map(days).ne(365)
-        _add_flag(calendar_flags, "calendar_days_per_listing_mismatch", mismatch)
+        # duplicates
+        _add_flag(listing_flags,"dup_listing_id",listings["id"].duplicated(keep=False),)
+        _add_flag(calendar_flags,"dup_cal_key",calendar.duplicated(subset=["listing_id", "date"],keep=False,),)
+        _add_flag(review_flags,"dup_review_id_in_snapshot",reviews["id"].duplicated(keep=False),)
+        _add_flag(review_flags,"dup_review_id_across_snapshots",(reviews["id"].map(review_snapshot_count).fillna(0).gt(1)),)
+
+        # Calendar completeness
+        row_counts = (calendar.groupby("listing_id").size())
+        unique_days = (calendar.groupby("listing_id")["date"].nunique())
+        row_mismatch = (calendar["listing_id"].map(row_counts).ne(365))
+        day_mismatch = (calendar["listing_id"].map(unique_days).ne(365))
+        _add_flag(calendar_flags,"calendar_days_per_listing_mismatch",(row_mismatch | day_mismatch),)
 
     return frames
 
-def _write_flag_frames(frames, selected=None):
-    selected = set(selected) if selected else None
+def _write_flag_frames(frames):
     for snapshot, tables in frames.items():
         output_dir = FLAGGED_DIR / snapshot
-        output_dir.mkdir(parents=True, exist_ok=True)
         for table, flags in tables.items():
-            path = output_dir / f"{table}_flags.csv.gz"
-            columns = TABLE_FILES[table][1] + [
-                column for column in flags.columns
-                if column not in TABLE_FILES[table][1]
-                and (selected is None or column in selected)
-            ]
-            output = flags[columns]
-            if selected and path.is_file():
-                previous = pd.read_csv(path, dtype=str, keep_default_na=False)
-                output = previous.merge(output, on=TABLE_FILES[table][1], how="outer")
-            output.to_csv(path, index=False, compression="gzip")
-
-def _write_qa_report(frames):
-    report = []
-    for snapshot, tables in frames.items():
-        for table, flags in tables.items():
-            total_rows = len(flags)
-            key_columns = TABLE_FILES[table][1]
-            for rule in RULES:
-                name = rule["name"]
-                if name not in flags.columns:
-                    continue
-                flagged_rows = int(flags[name].sum())
-                report.append(
-                    {
-                        "snapshot": snapshot,
-                        "table": table,
-                        "rule_name": name,
-                        "flagged_rows": flagged_rows,
-                        "total_rows": total_rows,
-                        "flag_rate": flagged_rows / total_rows if total_rows else 0,
-                    }
-                )
-    pd.DataFrame(report).to_csv(
-        project_root / "reports" / "qa_report.csv",
-        index=False,
-        encoding="utf-8",
-    )
+            output_path = (output_dir / f"{table}_flags.csv.gz")
+            _write_csv(flags,output_path,compressed=True,)
 
 def run_qa():
     frames = _build_flag_frames()
     _write_flag_frames(frames)
-    _write_qa_report(frames)
 
-def missing():
-    frames = _build_flag_frames()
-    _write_flag_frames(frames, {rule["name"] for rule in RULES if rule["name"].startswith("missing_")})
-
-def invalid():
-    frames = _build_flag_frames()
-    _write_flag_frames(frames, {rule["name"] for rule in RULES if rule["name"].startswith("invalid_")})
-
-def outlier():
-    frames = _build_flag_frames()
-    _write_flag_frames(frames, {"outlier_price"})
-
-def duplicate():
-    frames = _build_flag_frames()
-    _write_flag_frames(frames, {rule["name"] for rule in RULES if rule["name"].startswith("dup_")})
-
-def lech():
-    frames = _build_flag_frames()
-    _write_flag_frames(frames, {"calendar_days_per_listing_mismatch"})
-
-def main() -> int:
-    phan_cong()
-    run_qa()
-    return 0
+def main():
+    try:
+        config = _read_config()
+        phan_cong(config)
+        run_qa()
+        print("Đã xong!")
+        return 0
+    except Exception as error:
+        print(f"Lỗi: {type(error).__name__}: {error}")
+        return 1
 
 if __name__ == "__main__":
     raise SystemExit(main())
