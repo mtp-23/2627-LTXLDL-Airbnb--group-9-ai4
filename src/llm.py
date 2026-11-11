@@ -1,15 +1,9 @@
-"""
-Mô-đun trích xuất cấu trúc và phân tích cảm xúc đánh giá bằng LLM (Google Gemini).
+"""Mô-đun trích xuất cấu trúc và phân tích cảm xúc đánh giá bằng Gemini LLM.
 
-Bao gồm:
-- Tích hợp chuẩn quy trình sau QA: lọc bỏ review lỗi/trống theo cờ trong reviews_flags.csv.gz.
-- Đọc cấu hình động từ configs/<city>.yaml (mốc snapshot, raw_dir, processed_dir, tham số LLM).
-- Rate limiting và Retry tự động với tenacity và aiolimiter.
-- Trích xuất cảm xúc (positive/mixed/negative), 7 khía cạnh (khen/chê) và ngôn ngữ.
-- Cơ chế cache định dạng JSONL (hỗ trợ cờ --skip-llm để chạy offline hoặc test nhanh).
-- Chuyển đổi kết quả cache sang file bảng phẳng (data/processed/llm_results.csv)
-  phục vụ cho evaluate.py, kpi.py, và viz.py.
-- Ước tính chi phí xử lý toàn bộ tập dữ liệu thành phố.
+- Lọc review sạch sau QA và đọc mốc từ config YAML.
+- Ưu tiên 1.000 review được giao ('Mẫu LLM' == 'x' trong review.csv).
+- Rate limit 12 RPM, tự động retry khi gặp lỗi 429/5xx.
+- Cơ chế cache JSONL và cờ --skip-llm cho môi trường không có API Key.
 """
 
 from __future__ import annotations
@@ -37,7 +31,7 @@ load_dotenv()
 
 
 # ==========================================
-# 1. ĐỊNH NGHĨA SCHEMA (STRUCTURED OUTPUTS)
+# 1. SCHEMAS (STRUCTURED OUTPUTS)
 # ==========================================
 class SentimentEnum(str, Enum):
     POSITIVE = "positive"
@@ -63,23 +57,14 @@ class AspectPolarityEnum(str, Enum):
 class AspectDetail(BaseModel):
     category: AspectCategoryEnum
     sentiment: AspectPolarityEnum
-    description: Optional[str] = Field(
-        default=None,
-        description="Trích dẫn ngắn gọn từ review minh chứng cho khía cạnh"
-    )
+    description: Optional[str] = Field(default=None, description="Trích dẫn ngắn gọn từ review minh chứng")
 
 
 class ReviewAnalysis(BaseModel):
     review_id: str
     overall_sentiment: SentimentEnum
-    language: str = Field(
-        default="en",
-        description="Mã ngôn ngữ ISO 639-1 hai ký tự (ví dụ: en, es, vi)"
-    )
-    aspects: List[AspectDetail] = Field(
-        default_factory=list,
-        description="Danh sách các khía cạnh khen hoặc chê được đề cập"
-    )
+    language: str = Field(default="en", description="Mã ngôn ngữ ISO 639-1 hai ký tự")
+    aspects: List[AspectDetail] = Field(default_factory=list, description="Danh sách các khía cạnh khen/chê")
 
 
 class BatchReviewResponse(BaseModel):
@@ -87,17 +72,13 @@ class BatchReviewResponse(BaseModel):
 
 
 # ==========================================
-# 2. CẤU HÌNH RATE LIMIT & RETRY
+# 2. RATE LIMIT & GEMINI API CALL
 # ==========================================
-# Gói Free: 15 RPM, đặt 12 RPM để an toàn tránh burst
 limiter = AsyncLimiter(max_rate=12, time_period=60)
 
 
-def is_rate_limit_error(exception: BaseException) -> bool:
-    """Chỉ retry nếu lỗi là 429 (Too Many Requests) hoặc lỗi server 50x."""
-    if isinstance(exception, APIError):
-        return exception.code == 429 or exception.code >= 500
-    return False
+def is_rate_limit_error(e: BaseException) -> bool:
+    return isinstance(e, APIError) and (e.code == 429 or e.code >= 500)
 
 
 @retry(
@@ -110,26 +91,17 @@ async def process_batch_with_gemini(
     batch_df: pd.DataFrame,
     model_name: str = "gemini-3.5-flash-lite"
 ) -> List[Dict[str, Any]]:
-    """Gửi 1 batch review lên Gemini và ép kiểu trả về BatchReviewResponse."""
     input_data = batch_df[["id", "comments"]].to_dict(orient="records")
-    prompt = f"""Bạn là chuyên gia phân tích dữ liệu Airbnb. Hãy phân tích các đánh giá sau theo chuẩn:
-1. overall_sentiment: 'positive' (chủ yếu hài lòng/khen ngợi), 'negative' (chê bai/trải nghiệm tệ), 'mixed' (cân bằng giữa khen và chê).
-2. aspects: Chỉ gán các khía cạnh thuộc 7 nhóm sau:
-   - 'location' (vị trí, khu vực, khoảng cách, metro)
-   - 'cleanliness' (vệ sinh, sạch sẽ, bảo trì phòng)
-   - 'host' (thái độ, hỗ trợ, giao tiếp của chủ nhà)
-   - 'value' (đáng tiền, giá cả so với chất lượng)
-   - 'amenities' (tiện nghi: bếp, wifi, máy sưởi, ban công, hồ bơi)
-   - 'noise' (tiếng ồn, sự yên tĩnh, cách âm)
-   - 'safety' (an toàn khu vực, khóa cửa, an ninh)
+    prompt = f"""Bạn là chuyên gia phân tích dữ liệu Airbnb. Phân tích các đánh giá sau theo chuẩn:
+1. overall_sentiment: 'positive' (khen/hài lòng), 'negative' (chê/trải nghiệm tệ), 'mixed' (cân bằng khen và chê).
+2. aspects: Chỉ gán các khía cạnh thuộc 7 nhóm: location, cleanliness, host, value, amenities, noise, safety.
    Với mỗi khía cạnh, chỉ định rõ sentiment là 'positive' (khen) hoặc 'negative' (chê).
 3. language: Mã ngôn ngữ ISO 639-1 (ví dụ: en, es, vi).
-Giữ nguyên review_id từ danh sách đầu vào.
+Giữ nguyên review_id.
 
 Danh sách đánh giá:
 {json.dumps(input_data, ensure_ascii=False, indent=2)}
 """
-
     async with limiter:
         response = await client.aio.models.generate_content(
             model=model_name,
@@ -145,183 +117,149 @@ Danh sách đánh giá:
 
 
 # ==========================================
-# 3. QUẢN LÝ DỮ LIỆU SAU QA & CACHE
+# 3. DATA LOADER & CACHE HELPERS
 # ==========================================
+def get_assigned_llm_ids(project_root: Path) -> Optional[Set[str]]:
+    assign_file = project_root / "data" / "samples" / "review.csv"
+    if not assign_file.exists():
+        return None
+
+    df_assign = pd.read_csv(assign_file, dtype=str)
+    if "Mẫu LLM" not in df_assign.columns or "review_id" not in df_assign.columns:
+        return None
+
+    is_assigned = df_assign["Mẫu LLM"].str.strip().str.lower() == "x"
+    assigned = set(df_assign.loc[is_assigned, "review_id"])
+    if assigned:
+        print(f"[Assignment] Tìm thấy {len(assigned)} review được phân công trong review.csv")
+    return assigned or None
+
+
+def resolve_reviews_file(raw_dir: Path, target_snapshot: Optional[str], explicit_path: Optional[str]) -> Path:
+    if explicit_path and Path(explicit_path).exists():
+        return Path(explicit_path)
+    if target_snapshot:
+        candidate = raw_dir / target_snapshot / "reviews.csv.gz"
+        if candidate.exists():
+            return candidate
+
+    candidates = list(raw_dir.glob("**/reviews.csv.gz"))
+    if candidates:
+        return candidates[0]
+
+    raise FileNotFoundError(f"Không tìm thấy file reviews trong {raw_dir}. Vui lòng chạy python src/download.py trước!")
+
+
 def load_clean_reviews_after_qa(
     cfg: Dict[str, Any],
     snapshot: Optional[str] = None,
-    explicit_path: Optional[str] = None
+    explicit_path: Optional[str] = None,
+    assigned_ids: Optional[Set[str]] = None
 ) -> pd.DataFrame:
-    """
-    Nạp và làm sạch dữ liệu reviews sau khi đối chiếu với kết quả bước QA (qa.py).
-    
-    Quy tắc:
-    1. Đọc dữ liệu reviews theo snapshot từ config.
-    2. Nạp cờ QA từ data/processed/flagged/<snapshot>/reviews_flags.csv.gz.
-    3. Loại bỏ các review vi phạm rule QA:
-       - missing_review_text == True (comments rỗng / vô nghĩa)
-       - dup_review_id_in_snapshot == True (trùng lặp review)
-    4. Trả về DataFrame gồm ['id', 'comments'] sạch sẵn sàng lấy mẫu cho LLM.
-    """
     project_root = Path(__file__).resolve().parent.parent
     raw_dir = project_root / cfg.get("raw_dir", "data/raw")
     processed_dir = project_root / cfg.get("processed_dir", "data/processed")
     snapshots = [str(s) for s in cfg.get("snapshots", [])]
-
-    # Chọn snapshot mục tiêu (mặc định lấy snapshot mới nhất nếu không chỉ định)
     target_snapshot = snapshot or (snapshots[-1] if snapshots else None)
 
-    reviews_file: Optional[Path] = None
-    if explicit_path and Path(explicit_path).exists():
-        reviews_file = Path(explicit_path)
-    elif target_snapshot:
-        candidate = raw_dir / target_snapshot / "reviews.csv.gz"
-        if candidate.exists():
-            reviews_file = candidate
+    reviews_file = resolve_reviews_file(raw_dir, target_snapshot, explicit_path)
+    print(f"[QA Loader] Đọc review từ: {reviews_file} (Snapshot: {target_snapshot})")
 
-    # Nếu chưa thấy snapshot chỉ định, tìm bất kỳ reviews.csv.gz trong data/raw
-    if not reviews_file or not reviews_file.exists():
-        candidates = list(raw_dir.glob("**/reviews.csv.gz"))
-        if candidates:
-            reviews_file = candidates[0]
+    df = pd.read_csv(reviews_file, low_memory=False)
+    if "review_id" in df.columns and "id" not in df.columns:
+        df = df.rename(columns={"review_id": "id"})
+    df["id"] = df["id"].astype(str)
 
-    # Fallback kiểm thử: Nếu data/raw chưa tải, dùng tập nhãn tay để kiểm tra nhanh
-    if not reviews_file or not reviews_file.exists():
-        sample_file = project_root / "data" / "samples" / "hand_labeled.csv"
-        if sample_file.exists():
-            print(f"[QA Loader] Không thấy data/raw, nạp dữ liệu mẫu kiểm thử: {sample_file}")
-            df_sample = pd.read_csv(sample_file)
-            if "review_id" in df_sample.columns:
-                df_sample = df_sample.rename(columns={"review_id": "id"})
-            df_clean = df_sample[["id", "comments"]].dropna(subset=["comments"]).copy()
-            df_clean["id"] = df_clean["id"].astype(str)
-            return df_clean
-        raise FileNotFoundError("Không tìm thấy file reviews trong data/raw hoặc data/samples/")
-
-    print(f"[QA Loader] Đọc review thô từ: {reviews_file} (Snapshot: {target_snapshot})")
-    df_raw = pd.read_csv(reviews_file, low_memory=False)
-    if "review_id" in df_raw.columns and "id" not in df_raw.columns:
-        df_raw = df_raw.rename(columns={"review_id": "id"})
-
-    df_raw["id"] = df_raw["id"].astype(str)
-    initial_count = len(df_raw)
-
-    # Đọc cờ QA để lọc review lỗi
-    flags_file = (
-        processed_dir / "flagged" / target_snapshot / "reviews_flags.csv.gz"
-        if target_snapshot else None
-    )
+    # Lọc theo cờ QA nếu có
+    flags_file = processed_dir / "flagged" / target_snapshot / "reviews_flags.csv.gz" if target_snapshot else None
     if flags_file and flags_file.exists():
-        print(f"[QA Loader] Lọc theo cờ QA từ: {flags_file}")
-        df_flags = pd.read_csv(flags_file)
-        df_flags["id"] = df_flags["id"].astype(str)
+        flags = pd.read_csv(flags_file)
+        flags["id"] = flags["id"].astype(str)
+        bad_mask = pd.Series(False, index=flags.index)
+        for col in ("missing_review_text", "dup_review_id_in_snapshot"):
+            if col in flags.columns:
+                bad_mask |= flags[col].fillna(False).astype(bool)
+        invalid_ids = set(flags.loc[bad_mask, "id"])
+        df = df[~df["id"].isin(invalid_ids)]
+        print(f"[QA Loader] QA Filter: còn {len(df)} review sạch sau khi loại cờ xấu.")
 
-        # Loại bỏ các review có cờ lỗi: missing text hoặc duplicate trong snapshot
-        bad_mask = pd.Series(False, index=df_flags.index)
-        if "missing_review_text" in df_flags.columns:
-            bad_mask |= df_flags["missing_review_text"].fillna(False).astype(bool)
-        if "dup_review_id_in_snapshot" in df_flags.columns:
-            bad_mask |= df_flags["dup_review_id_in_snapshot"].fillna(False).astype(bool)
+    df = df.dropna(subset=["comments"])
+    df = df[df["comments"].astype(str).str.strip().ne("")]
 
-        invalid_ids = set(df_flags.loc[bad_mask, "id"])
-        df_clean = df_raw[~df_raw["id"].isin(invalid_ids)].copy()
-        print(f"[QA Loader] QA Filter: {initial_count} review ban đầu -> loại {len(invalid_ids)} cờ xấu -> còn {len(df_clean)} review sạch.")
-    else:
-        print("[QA Loader] Chưa có file cờ QA, tiến hành làm sạch cơ bản (loại bỏ null/khoảng trắng)...")
-        df_clean = df_raw.copy()
+    if assigned_ids:
+        df = df[df["id"].isin(assigned_ids)]
+        print(f"[Assignment] Khớp chính xác {len(df)} / {len(assigned_ids)} review được giao.")
 
-    df_clean = df_clean.dropna(subset=["comments"]).copy()
-    df_clean = df_clean[df_clean["comments"].astype(str).str.strip() != ""]
-    return df_clean[["id", "comments"]]
+    return df[["id", "comments"]]
 
 
 def load_cached_ids(cache_path: str | Path) -> Set[str]:
-    """Đọc danh sách review_id đã có trong cache."""
     cache_file = Path(cache_path)
     if not cache_file.exists():
         return set()
 
-    processed_ids = set()
+    with open(cache_file, "r", encoding="utf-8") as f:
+        return {
+            str(d["review_id"])
+            for line in f
+            if line.strip()
+            for d in [json.loads(line)]
+            if "review_id" in d
+        }
+
+
+def export_cache_to_csv(
+    cache_path: str | Path,
+    output_csv_path: str | Path,
+    target_ids: Optional[Set[str]] = None
+) -> pd.DataFrame:
+    cache_file, out_csv = Path(cache_path), Path(output_csv_path)
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+
+    if not cache_file.exists():
+        df_empty = pd.DataFrame(columns=["review_id", "sentiment", "aspects_positive", "aspects_negative", "language"])
+        df_empty.to_csv(out_csv, index=False, encoding="utf-8")
+        return df_empty
+
+    rows, seen_ids = [], set()
     with open(cache_file, "r", encoding="utf-8") as f:
         for line in f:
-            line = line.strip()
-            if not line:
+            if not line.strip():
                 continue
-            try:
-                data = json.loads(line)
-                if "review_id" in data:
-                    processed_ids.add(str(data["review_id"]))
-            except json.JSONDecodeError:
+            data = json.loads(line)
+            rid = str(data.get("review_id", ""))
+            if not rid or rid in seen_ids or (target_ids is not None and rid not in target_ids):
                 continue
-    return processed_ids
 
+            seen_ids.add(rid)
+            aspects = data.get("aspects", [])
+            rows.append({
+                "review_id": rid,
+                "sentiment": data.get("overall_sentiment", ""),
+                "aspects_positive": ", ".join(a["category"] for a in aspects if a.get("sentiment") == "positive"),
+                "aspects_negative": ", ".join(a["category"] for a in aspects if a.get("sentiment") == "negative"),
+                "language": data.get("language", "")
+            })
 
-def export_cache_to_csv(cache_path: str | Path, output_csv_path: str | Path) -> pd.DataFrame:
-    """Chuyển đổi file cache JSONL sang bảng phẳng CSV tương thích với hand_labeled.csv."""
-    cache_file = Path(cache_path)
-    output_csv = Path(output_csv_path)
-    output_csv.parent.mkdir(parents=True, exist_ok=True)
-
-    rows = []
-    if cache_file.exists():
-        with open(cache_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    data = json.loads(line)
-                    aspects = data.get("aspects", [])
-                    pos_aspects = [a["category"] for a in aspects if a.get("sentiment") == "positive"]
-                    neg_aspects = [a["category"] for a in aspects if a.get("sentiment") == "negative"]
-
-                    rows.append({
-                        "review_id": str(data.get("review_id", "")),
-                        "sentiment": data.get("overall_sentiment", ""),
-                        "aspects_positive": ", ".join(pos_aspects),
-                        "aspects_negative": ", ".join(neg_aspects),
-                        "language": data.get("language", "")
-                    })
-                except Exception:
-                    continue
-
-    df_results = pd.DataFrame(
-        rows,
-        columns=["review_id", "sentiment", "aspects_positive", "aspects_negative", "language"]
-    )
-    df_results.to_csv(output_csv, index=False, encoding="utf-8")
-    print(f"Đã xuất {len(df_results)} kết quả LLM ra: {output_csv}")
-    return df_results
+    df = pd.DataFrame(rows, columns=["review_id", "sentiment", "aspects_positive", "aspects_negative", "language"])
+    df.to_csv(out_csv, index=False, encoding="utf-8")
+    print(f"Đã xuất {len(df)} kết quả LLM ra: {out_csv}")
+    return df
 
 
 # ==========================================
-# 4. LUỒNG CHÍNH VÀ ƯỚC TÍNH CHI PHÍ
+# 4. PIPELINE & COST ESTIMATION
 # ==========================================
 def estimate_total_cost(total_reviews: int, avg_input_chars: int = 300) -> Dict[str, Any]:
-    """
-    Ước tính chi phí chạy toàn bộ tập review bằng Gemini 3.5 Flash Lite.
-    Giả định: 1 token ~ 4 characters.
-    Giá tham khảo (Google AI Studio - Pay-as-you-go):
-    - Input: $0.30 / 1 triệu token
-    - Output: $2.50 / 1 triệu token
-    """
-    prompt_tokens = 150
-    review_tokens = avg_input_chars / 4
-    input_tokens_per_review = prompt_tokens + review_tokens
-    output_tokens_per_review = 80
-
-    total_input_tokens = total_reviews * input_tokens_per_review
-    total_output_tokens = total_reviews * output_tokens_per_review
-
-    input_cost = (total_input_tokens / 1_000_000) * 0.30
-    output_cost = (total_output_tokens / 1_000_000) * 2.50
-    total_cost = input_cost + output_cost
-
+    total_input = total_reviews * (150 + avg_input_chars / 4)
+    total_output = total_reviews * 80
+    input_cost = (total_input / 1_000_000) * 0.30
+    output_cost = (total_output / 1_000_000) * 2.50
     return {
         "total_reviews": total_reviews,
         "estimated_input_cost_usd": round(input_cost, 4),
         "estimated_output_cost_usd": round(output_cost, 4),
-        "total_cost_usd": round(total_cost, 4)
+        "total_cost_usd": round(input_cost + output_cost, 4)
     }
 
 
@@ -335,8 +273,9 @@ async def run_llm_pipeline(
     batch_size: int = 20,
     skip_llm: bool = False
 ) -> pd.DataFrame:
-    """Chạy quy trình trích xuất LLM trên dữ liệu sau QA có cache và xuất bảng phẳng."""
-    # 1. Đọc cấu hình từ YAML
+    project_root = Path(__file__).resolve().parent.parent
+
+    # Nạp cấu hình YAML
     cfg: Dict[str, Any] = {}
     if Path(config_path).exists():
         with open(config_path, "r", encoding="utf-8") as f:
@@ -348,39 +287,32 @@ async def run_llm_pipeline(
     out_csv = Path(output_csv or "data/processed/llm_results.csv")
     target_sample_size = sample_size or llm_cfg.get("sample_size") or 1000
     seed = llm_cfg.get("seed") or 42
-
     cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Nếu bật cờ --skip-llm, chỉ đọc cache xuất ra CSV
-    if skip_llm:
-        print(f"[--skip-llm] Bỏ qua gọi API Gemini. Chuyển đổi cache có sẵn sang {out_csv}...")
-        return export_cache_to_csv(cache_file, out_csv)
+    assigned_ids = get_assigned_llm_ids(project_root)
 
-    # 2. Kiểm tra API Key
+    # Chế độ Skip LLM (chạy offline / test)
+    if skip_llm:
+        print(f"[--skip-llm] Bỏ qua gọi API Gemini. Xuất cache có sẵn sang {out_csv}...")
+        return export_cache_to_csv(cache_file, out_csv, target_ids=assigned_ids)
+
+    # Kiểm tra API key
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("API_KEY")
     if not api_key:
-        print("[CẢNH BÁO] Không tìm thấy GEMINI_API_KEY hoặc API_KEY trong môi trường.")
-        print("Nếu muốn chạy kiểm thử mà không gọi API, hãy sử dụng cờ: --skip-llm")
+        print("[CẢNH BÁO] Không tìm thấy API key. Dùng --skip-llm để chạy offline bằng cache.")
         if cache_file.exists():
-            print("Đang nạp từ cache hiện có...")
-            return export_cache_to_csv(cache_file, out_csv)
-        raise ValueError("Thiếu API Key! Vui lòng đặt GEMINI_API_KEY trong file .env hoặc biến môi trường.")
+            return export_cache_to_csv(cache_file, out_csv, target_ids=assigned_ids)
+        raise ValueError("Thiếu API Key! Đặt GEMINI_API_KEY trong .env hoặc biến môi trường.")
 
     client = genai.Client(api_key=api_key)
-
-    # 3. Đọc cache đã có
     processed_ids = load_cached_ids(cache_file)
 
-    # 4. Nạp dữ liệu reviews đã được lọc sạch sau bước QA
-    df_clean = load_clean_reviews_after_qa(cfg, snapshot=snapshot, explicit_path=reviews_path)
+    # Lọc dữ liệu sau QA
+    df_clean = load_clean_reviews_after_qa(cfg, snapshot, reviews_path, assigned_ids)
+    df_target = df_clean if assigned_ids else df_clean.sample(n=min(target_sample_size, len(df_clean)), random_state=seed)
 
-    # 5. Lấy mẫu kiểm soát hạt giống (seed)
-    n_sample = min(target_sample_size, len(df_clean))
-    sampled_df = df_clean.sample(n=n_sample, random_state=seed)
-
-    # 6. Lọc bỏ các dòng đã có trong cache
-    pending_df = sampled_df[~sampled_df["id"].isin(processed_ids)]
-    print(f"Mẫu mục tiêu: {n_sample} | Đã có trong cache: {len(processed_ids)} | Cần gửi LLM: {len(pending_df)}")
+    pending_df = df_target[~df_target["id"].isin(processed_ids)]
+    print(f"Mục tiêu: {len(df_target)} | Đã cache: {len(processed_ids.intersection(set(df_target['id'])))} | Cần gửi LLM: {len(pending_df)}")
 
     if not pending_df.empty:
         batches = [pending_df.iloc[i:i + batch_size] for i in range(0, len(pending_df), batch_size)]
@@ -394,39 +326,34 @@ async def run_llm_pipeline(
             except Exception as e:
                 print(f"Lỗi ở batch {i+1}: {e}")
 
-    # 7. Xuất kết quả phẳng ra CSV cho các mô-đun kpi.py, evaluate.py, viz.py
-    return export_cache_to_csv(cache_file, out_csv)
+    return export_cache_to_csv(cache_file, out_csv, target_ids=assigned_ids)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Trích xuất dữ liệu có cấu trúc từ reviews sau QA bằng Gemini LLM")
+    parser = argparse.ArgumentParser(description="Trích xuất dữ liệu có cấu trúc từ 1.000 review phân công bằng Gemini")
     parser.add_argument("--config", default="configs/santiago.yaml", help="Đường dẫn file cấu hình YAML")
-    parser.add_argument("--snapshot", default=None, help="Mốc snapshot cần phân tích (mặc định lấy mốc cuối trong config)")
-    parser.add_argument("--reviews-path", default=None, help="Đường dẫn file reviews.csv(.gz) nếu chỉ định thủ công")
+    parser.add_argument("--snapshot", default=None, help="Mốc snapshot cần phân tích")
+    parser.add_argument("--reviews-path", default=None, help="Đường dẫn file reviews.csv(.gz)")
     parser.add_argument("--cache", default=None, help="Đường dẫn file cache JSONL")
     parser.add_argument("--output-csv", default=None, help="Đường dẫn file CSV kết quả")
     parser.add_argument("--sample-size", type=int, default=None, help="Cỡ mẫu phân tích")
     parser.add_argument("--skip-llm", action="store_true", help="Bỏ qua gọi API, chỉ dùng cache")
     parser.add_argument("--estimate-cost", type=int, default=None, help="Ước tính chi phí cho N reviews")
-
     args = parser.parse_args()
 
     if args.estimate_cost is not None:
-        cost = estimate_total_cost(args.estimate_cost)
-        print(json.dumps(cost, indent=2, ensure_ascii=False))
+        print(json.dumps(estimate_total_cost(args.estimate_cost), indent=2, ensure_ascii=False))
         return 0
 
-    asyncio.run(
-        run_llm_pipeline(
-            config_path=args.config,
-            snapshot=args.snapshot,
-            reviews_path=args.reviews_path,
-            cache_path=args.cache,
-            output_csv=args.output_csv,
-            sample_size=args.sample_size,
-            skip_llm=args.skip_llm
-        )
-    )
+    asyncio.run(run_llm_pipeline(
+        config_path=args.config,
+        snapshot=args.snapshot,
+        reviews_path=args.reviews_path,
+        cache_path=args.cache,
+        output_csv=args.output_csv,
+        sample_size=args.sample_size,
+        skip_llm=args.skip_llm
+    ))
     return 0
 
 
