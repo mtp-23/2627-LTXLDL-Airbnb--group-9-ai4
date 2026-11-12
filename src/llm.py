@@ -1,7 +1,7 @@
 """Mô-đun trích xuất cấu trúc và phân tích cảm xúc đánh giá bằng Gemini LLM.
 
 - Lọc review sạch sau QA và đọc mốc từ config YAML.
-- Ưu tiên 1.000 review được giao ('Mẫu LLM' == 'x' trong review.csv).
+- Ưu tiên đọc từ data/raw/phan_cong/ (danh sách review được phân công cho nhóm).
 - Rate limit 12 RPM, tự động retry khi gặp lỗi 429/5xx.
 - Cơ chế cache JSONL và cờ --skip-llm cho môi trường không có API Key.
 """
@@ -117,37 +117,94 @@ Danh sách đánh giá:
 
 
 # ==========================================
-# 3. DATA LOADER & CACHE HELPERS
+# 3. DATA LOADER & CACHE HELPERS (CẬP NHẬT THEO PHÂN CÔNG)
 # ==========================================
 def get_assigned_llm_ids(project_root: Path) -> Optional[Set[str]]:
-    assign_file = project_root / "data" / "samples" / "review.csv"
-    if not assign_file.exists():
+    """
+    Đọc danh sách review_id được phân công từ data/raw/phan_cong/ (hoặc data/raw/phan-cong/).
+    """
+    candidate_paths = [
+        project_root / "data" / "raw" / "phan_cong" / "review.csv.gz",
+        project_root / "data" / "raw" / "phan_cong" / "review.csv",
+        project_root / "data" / "raw" / "phan-cong" / "review.csv.gz",
+        project_root / "data" / "raw" / "phan-cong" / "review.csv",
+    ]
+
+    assign_file = None
+    for p in candidate_paths:
+        if p.exists():
+            assign_file = p
+            break
+
+    if not assign_file:
+        print("[Assignment] Chưa tìm thấy file phân công review trong data/raw/phan_cong/. Sẽ lấy mẫu ngẫu nhiên sau QA.")
         return None
 
-    df_assign = pd.read_csv(assign_file, dtype=str)
-    if "Mẫu LLM" not in df_assign.columns or "review_id" not in df_assign.columns:
-        return None
+    try:
+        compression = "gzip" if str(assign_file).endswith(".gz") else None
+        df_assign = pd.read_csv(assign_file, dtype=str, compression=compression)
 
-    is_assigned = df_assign["Mẫu LLM"].str.strip().str.lower() == "x"
-    assigned = set(df_assign.loc[is_assigned, "review_id"])
-    if assigned:
-        print(f"[Assignment] Tìm thấy {len(assigned)} review được phân công trong review.csv")
-    return assigned or None
+        # Lọc đúng mã dữ liệu của nhóm nếu có cột 'Mã dữ liệu'
+        if "Mã dữ liệu" in df_assign.columns:
+            dataset_id = "DSE2049-C04-G09-santiago"
+            mask = df_assign["Mã dữ liệu"].astype(str).str.strip() == dataset_id
+            if mask.any():
+                df_assign = df_assign[mask]
+
+        id_col = "review_id" if "review_id" in df_assign.columns else ("id" if "id" in df_assign.columns else None)
+        if not id_col:
+            return None
+
+        if "Mẫu LLM" in df_assign.columns:
+            is_assigned = df_assign["Mẫu LLM"].astype(str).str.strip().str.lower() == "x"
+            assigned = set(df_assign.loc[is_assigned, id_col].dropna().str.strip())
+        else:
+            assigned = set(df_assign[id_col].dropna().str.strip())
+
+        if assigned:
+            print(f"[Assignment] Tìm thấy {len(assigned)} review được phân công từ {assign_file.name}")
+            return assigned
+    except Exception as e:
+        print(f"[Assignment] Cảnh báo lỗi đọc file phân công {assign_file}: {e}")
+
+    return None
 
 
 def resolve_reviews_file(raw_dir: Path, target_snapshot: Optional[str], explicit_path: Optional[str]) -> Path:
+    """
+    Ưu tiên tìm file reviews trong data/raw/phan_cong/ (hoặc phan-cong),
+    nếu không có thì fallback sang snapshot thô.
+    """
     if explicit_path and Path(explicit_path).exists():
         return Path(explicit_path)
+
+    # 1. Ưu tiên tìm trong raw/phan_cong/ hoặc raw/phan-cong/
+    phan_cong_dirs = [raw_dir / "phan_cong", raw_dir / "phan-cong"]
+    for pcd in phan_cong_dirs:
+        if pcd.exists():
+            if target_snapshot:
+                cand = pcd / target_snapshot / "reviews.csv.gz"
+                if cand.exists():
+                    print(f"[QA Loader] Sử dụng reviews từ phân công: {cand}")
+                    return cand
+            candidates = list(pcd.glob("**/reviews.csv.gz"))
+            if candidates:
+                print(f"[QA Loader] Sử dụng reviews từ phân công: {candidates[0]}")
+                return candidates[0]
+
+    # 2. Fallback sang snapshot thô
     if target_snapshot:
         candidate = raw_dir / target_snapshot / "reviews.csv.gz"
         if candidate.exists():
+            print(f"[QA Loader] Dùng reviews từ snapshot thô: {candidate}")
             return candidate
 
     candidates = list(raw_dir.glob("**/reviews.csv.gz"))
     if candidates:
+        print(f"[QA Loader] Dùng reviews fallback: {candidates[0]}")
         return candidates[0]
 
-    raise FileNotFoundError(f"Không tìm thấy file reviews trong {raw_dir}. Vui lòng chạy python src/download.py trước!")
+    raise FileNotFoundError(f"Không tìm thấy file reviews trong {raw_dir}. Vui lòng chạy python src/download.py và qa.py trước!")
 
 
 def load_clean_reviews_after_qa(
@@ -183,8 +240,10 @@ def load_clean_reviews_after_qa(
         df = df[~df["id"].isin(invalid_ids)]
         print(f"[QA Loader] QA Filter: còn {len(df)} review sạch sau khi loại cờ xấu.")
 
+    # Đảm bảo 100% không có review nào bị rỗng/thiếu comment
     df = df.dropna(subset=["comments"])
     df = df[df["comments"].astype(str).str.strip().ne("")]
+    print(f"[QA Loader] Đã lọc sạch: 100% review ({len(df)}) đều có nội dung comments hợp lệ.")
 
     if assigned_ids:
         df = df[df["id"].isin(assigned_ids)]
@@ -236,8 +295,8 @@ def export_cache_to_csv(
             rows.append({
                 "review_id": rid,
                 "sentiment": data.get("overall_sentiment", ""),
-                "aspects_positive": ", ".join(a["category"] for a in aspects if a.get("sentiment") == "positive"),
-                "aspects_negative": ", ".join(a["category"] for a in aspects if a.get("sentiment") == "negative"),
+                "aspects_positive": ", ".join(sorted(list(set(a["category"] for a in aspects if a.get("sentiment") == "positive")))),
+                "aspects_negative": ", ".join(sorted(list(set(a["category"] for a in aspects if a.get("sentiment") == "negative")))),
                 "language": data.get("language", "")
             })
 
@@ -256,6 +315,7 @@ def estimate_total_cost(total_reviews: int, avg_input_chars: int = 300) -> Dict[
     input_cost = (total_input / 1_000_000) * 0.30
     output_cost = (total_output / 1_000_000) * 2.50
     return {
+        "model": "gemini-3.5-flash-lite",
         "total_reviews": total_reviews,
         "estimated_input_cost_usd": round(input_cost, 4),
         "estimated_output_cost_usd": round(output_cost, 4),
