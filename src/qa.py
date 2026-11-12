@@ -81,7 +81,7 @@ RULES = [
         "todo": "Gắn cờ",
     },
     {
-        "name": "missing_review_text",
+        "name": "missing_comments",
         "condition": "comments bị thiếu/None/null hoặc chỉ chứa khoảng trắng",
         "reason": "Không có nội dung để phân tích cảm xúc bằng LLM",
         "todo": "Gắn cờ và loại khỏi tập đầu vào LLM nếu không có nội dung",
@@ -248,6 +248,7 @@ def download_sheet(name, gid):
 
 
 def _load_assignments():
+    print("Đang phân công nhiệm vụ!")
     for name, gid in SHEETS.items():
         path = OUTPUT_DIR / f"{name}.csv.gz"
         if not path.is_file():
@@ -427,6 +428,7 @@ def _build_flag_frames():
             review_snapshot_count[review_id] = (review_snapshot_count.get(review_id, 0) + 1)
 
     for snapshot, tables in inputs.items():
+        print(f"Đang gắn cờ mốc {snapshot}!")
         listings = tables["listings"]
         calendar = tables["calendar"]
         reviews = tables["reviews"]
@@ -446,7 +448,7 @@ def _build_flag_frames():
             _add_flag(listing_flags,rule_name,_is_missing(listings[column]),)
 
         _add_flag(review_flags,"missing_review_date",_is_missing(reviews["date"]),)
-        _add_flag(review_flags,"missing_review_text",_is_missing(reviews["comments"]),)
+        _add_flag(review_flags,"missing_comments",_is_missing(reviews["comments"]),)
 
         # invalid
         review_count = (listings["number_of_reviews"].astype("string").str.strip())
