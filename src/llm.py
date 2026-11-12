@@ -120,7 +120,7 @@ Danh sách đánh giá:
 # 3. DATA LOADER & CACHE HELPERS
 # ==========================================
 def get_assigned_llm_ids(project_root: Path) -> Optional[Set[str]]:
-    assign_file = project_root / "data" / "samples" / "review.csv"
+    assign_file = project_root / "data" / "raw" / "phan_cong" / "review.csv.gz"
     if not assign_file.exists():
         return None
 
@@ -128,10 +128,15 @@ def get_assigned_llm_ids(project_root: Path) -> Optional[Set[str]]:
     if "Mẫu LLM" not in df_assign.columns or "review_id" not in df_assign.columns:
         return None
 
-    is_assigned = df_assign["Mẫu LLM"].str.strip().str.lower() == "x"
-    assigned = set(df_assign.loc[is_assigned, "review_id"])
+    is_assigned = (
+        df_assign["Mã dữ liệu"].astype(str).str.strip().eq("DSE2049-C04-G09-santiago")
+        & df_assign["Mẫu LLM"].astype(str).str.strip().str.lower().eq("x")
+    )
+    assigned = set(
+        df_assign.loc[is_assigned, "review_id"].dropna().astype(str).str.strip()
+    )
     if assigned:
-        print(f"[Assignment] Tìm thấy {len(assigned)} review được phân công trong review.csv")
+        print(f"Tìm thấy {len(assigned)} review được phân công!")
     return assigned or None
 
 
@@ -147,7 +152,7 @@ def resolve_reviews_file(raw_dir: Path, target_snapshot: Optional[str], explicit
     if candidates:
         return candidates[0]
 
-    raise FileNotFoundError(f"Không tìm thấy file reviews trong {raw_dir}. Vui lòng chạy python src/download.py trước!")
+    raise FileNotFoundError(f"Không tìm thấy file reviews trong {raw_dir}. Chạy python src/download.py trước!")
 
 
 def load_clean_reviews_after_qa(
@@ -157,39 +162,55 @@ def load_clean_reviews_after_qa(
     assigned_ids: Optional[Set[str]] = None
 ) -> pd.DataFrame:
     project_root = Path(__file__).resolve().parent.parent
-    raw_dir = project_root / cfg.get("raw_dir", "data/raw")
     processed_dir = project_root / cfg.get("processed_dir", "data/processed")
     snapshots = [str(s) for s in cfg.get("snapshots", [])]
-    target_snapshot = snapshot or (snapshots[-1] if snapshots else None)
+    target_snapshots = (
+        [str(snapshot)]
+        if snapshot
+        else [Path(explicit_path).parent.name] if explicit_path else snapshots
+    )
+    raw_dir = project_root / "data" / "raw" / "phan_cong"
 
-    reviews_file = resolve_reviews_file(raw_dir, target_snapshot, explicit_path)
-    print(f"[QA Loader] Đọc review từ: {reviews_file} (Snapshot: {target_snapshot})")
+    if not target_snapshots:
+        raise ValueError("Config không có snapshot để đọc review.")
 
-    df = pd.read_csv(reviews_file, low_memory=False)
-    if "review_id" in df.columns and "id" not in df.columns:
-        df = df.rename(columns={"review_id": "id"})
-    df["id"] = df["id"].astype(str)
+    review_frames = []
+    invalid_ids = set()
+    for target_snapshot in target_snapshots:
+        reviews_file = (Path(explicit_path) if explicit_path
+                        else raw_dir / target_snapshot / "reviews.csv.gz")
+        if not reviews_file.exists():
+            raise FileNotFoundError(f"Không tìm thấy reviews trong mốc {target_snapshot}")
+        print(f"Đọc review từ: {target_snapshot}")
 
-    # Lọc theo cờ QA nếu có
-    flags_file = processed_dir / "flagged" / target_snapshot / "reviews_flags.csv.gz" if target_snapshot else None
-    if flags_file and flags_file.exists():
+        snapshot_reviews = pd.read_csv(reviews_file, low_memory=False)
+        if "review_id" in snapshot_reviews.columns and "id" not in snapshot_reviews.columns:
+            snapshot_reviews = snapshot_reviews.rename(columns={"review_id": "id"})
+        if "id" not in snapshot_reviews.columns or "comments" not in snapshot_reviews.columns:
+            raise ValueError(f"{reviews_file} phải có cột id và comments")
+        snapshot_reviews["id"] = snapshot_reviews["id"].astype(str).str.strip()
+
+        flags_file = processed_dir / "flagged" / target_snapshot / "reviews_flags.csv.gz"
+        if not flags_file.exists():
+            raise FileNotFoundError(f"Không tìm thấy file cờ QA trong {target_snapshot}")
         flags = pd.read_csv(flags_file)
-        flags["id"] = flags["id"].astype(str)
-        bad_mask = pd.Series(False, index=flags.index)
-        for col in ("missing_review_text", "dup_review_id_in_snapshot"):
-            if col in flags.columns:
-                bad_mask |= flags[col].fillna(False).astype(bool)
-        invalid_ids = set(flags.loc[bad_mask, "id"])
-        df = df[~df["id"].isin(invalid_ids)]
-        print(f"[QA Loader] QA Filter: còn {len(df)} review sạch sau khi loại cờ xấu.")
+        if "id" not in flags.columns or "missing_comments" not in flags.columns:
+            raise ValueError(f" flagged/{target_snapshot} phải có cột id và missing_comments")
+        flags["id"] = flags["id"].astype(str).str.strip()
+        invalid_ids.update(
+            flags.loc[flags["missing_comments"].fillna(False).astype(bool), "id"]
+        )
+        review_frames.append(snapshot_reviews[["id", "comments"]])
 
-    df = df.dropna(subset=["comments"])
-    df = df[df["comments"].astype(str).str.strip().ne("")]
-
+    df = pd.concat(review_frames, ignore_index=True)
     if assigned_ids:
         df = df[df["id"].isin(assigned_ids)]
-        print(f"[Assignment] Khớp chính xác {len(df)} / {len(assigned_ids)} review được giao.")
+        print(f"Khớp chính xác {df['id'].nunique()} / {len(assigned_ids)} review được giao.")
 
+    df = df[~df["id"].isin(invalid_ids)]
+    df = df.dropna(subset=["comments"])
+    df = df[df["comments"].astype(str).str.strip().ne("")]
+    df = df.drop_duplicates(subset=["id"], keep="last")
     return df[["id", "comments"]]
 
 
@@ -270,7 +291,7 @@ async def run_llm_pipeline(
     cache_path: Optional[str] = None,
     output_csv: Optional[str] = None,
     sample_size: Optional[int] = None,
-    batch_size: int = 20,
+    batch_size: int = 50,
     skip_llm: bool = False
 ) -> pd.DataFrame:
     project_root = Path(__file__).resolve().parent.parent
@@ -299,10 +320,10 @@ async def run_llm_pipeline(
     # Kiểm tra API key
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("API_KEY")
     if not api_key:
-        print("[CẢNH BÁO] Không tìm thấy API key. Dùng --skip-llm để chạy offline bằng cache.")
+        print("Không tìm thấy API key. Dùng --skip-llm để chạy offline bằng cache.")
         if cache_file.exists():
             return export_cache_to_csv(cache_file, out_csv, target_ids=assigned_ids)
-        raise ValueError("Thiếu API Key! Đặt GEMINI_API_KEY trong .env hoặc biến môi trường.")
+        raise ValueError("Thiếu API Key! Đặt GEMINI_API_KEY trong .env")
 
     client = genai.Client(api_key=api_key)
     processed_ids = load_cached_ids(cache_file)

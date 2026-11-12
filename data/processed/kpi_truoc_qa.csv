@@ -1,0 +1,8 @@
+﻿stt,kpi,cong_thuc,don_vi,gia_tri,nhom,tu_so,mau_so,pham_vi
+1,Số lượng listing theo khu vực,Đếm listing theo neighbourhood_cleansed,Phòng,387.0,Santiago,387.0,1000,2026-06-29
+2,Tỷ lệ loại phòng,Số listing từng room_type / tổng listing × 100%,%,87.5,Entire home/apt,875.0,1000,2026-06-29
+3,Tỷ lệ listing chưa có review,Listing có number_of_reviews = 0 / tổng listing × 100%,%,2.5,,25.0,1000,2026-06-29
+4,Số review trung bình trên listing,Tổng number_of_reviews / tổng listing,Review/listing,81.96,,81960.0,1000,2026-06-29
+5,Tỷ lệ ngày có thể đặt phòng,Số ngày available = 't' / tổng ngày hợp lệ × 100%,%,74.07,,270371.0,365000,2026-06-29
+6,Tỷ lệ review tích cực theo LLM,Review được LLM phân loại tích cực / tổng review có nhãn hợp lệ × 100%,%,89.3,,893.0,1000,mẫu review đã chạy LLM
+7,F1-score của LLM,So sánh nhãn LLM với nhãn thủ công,Điểm F1 (0-1),0.6762,,,97,mẫu review đã chạy LLM

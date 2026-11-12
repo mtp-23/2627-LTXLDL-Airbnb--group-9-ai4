@@ -173,8 +173,14 @@ def main() -> int:
 
     jobs = build_jobs(cfg, out_root)
     stats = {"done": 0, "skipped": 0, "missing": 0, "failed": 0}
+    current_snapshot = None
 
     for url, dest in jobs:
+        snapshot = dest.parent.name
+        if snapshot != current_snapshot:
+            print(f"Đang tải mốc {snapshot}!")
+            current_snapshot = snapshot
+
         file_type = (dest.name.removesuffix(".csv.gz")
                      if dest.name.endswith(".csv.gz") else None)
         stats[download_file(url, dest, file_type, args.force)] += 1
