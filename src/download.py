@@ -1,7 +1,6 @@
 import argparse
 import csv
 import gzip
-import json
 import sys
 import time
 import zlib
@@ -21,7 +20,7 @@ FILE_KEYS = {
     "reviews": ("id",),
 }
 
-# Đọc cấu hình 
+# Đọc cấu hình
 def find_config(arg: str | None) -> Path:
     if arg:
         if not Path(arg).exists():
@@ -41,7 +40,7 @@ def load_config(path: Path) -> dict:
     for key in ("data_root", "snapshots", "download", "raw_dir"):
         if key not in cfg:
             sys.exit(f"Thiếu khóa '{key}' trong configs")
-    for key in ("URL_CSV", "URL_GEOJSON", "f_type"):
+    for key in ("url_csv", "f_type"):
         if key not in cfg["download"]:
             sys.exit(f"Thiếu khóa '{key}' trong configs")
 
@@ -56,17 +55,12 @@ def load_config(path: Path) -> dict:
     if not isinstance(file_types, list) or set(file_types) != set(FILE_KEYS):
         sys.exit("[download][f_type] phải bao gồm listings, calendar và reviews.")
 
-    url_template = cfg["download"]["URL_CSV"]
+    url_template = cfg["download"]["url_csv"]
     parsed_url = urlsplit(url_template)
     if parsed_url.scheme != "https" or parsed_url.hostname != "data.insideairbnb.com":
-        sys.exit("URL_CSV phải dùng HTTPS và host data.insideairbnb.com.")
+        sys.exit("url_csv phải dùng HTTPS và host data.insideairbnb.com.")
     if parsed_url.path != "/{data_root}/{date}/data/{f_type}.csv.gz":
-        sys.exit("URL_CSV phải theo mẫu .../{data_root}/{date}/data/{f_type}.csv.gz.")
-    geojson_url = urlsplit(cfg["download"]["URL_GEOJSON"])
-    if geojson_url.scheme != "https" or geojson_url.hostname != "data.insideairbnb.com":
-        sys.exit("URL_GEOJSON phải dùng HTTPS và host data.insideairbnb.com.")
-    if geojson_url.path != "/{data_root}/{date}/visualisations/neighbourhoods.geojson":
-        sys.exit("URL_GEOJSON phải theo mẫu .../{data_root}/{date}/visualisations/neighbourhoods.geojson.")
+        sys.exit("url_csv phải theo mẫu .../{data_root}/{date}/data/{f_type}.csv.gz.")
     return cfg
 
 # Tạo danh sách tải
@@ -80,11 +74,8 @@ def build_jobs(cfg: dict, out_root: Path):
         folder = out_root / date
 
         for f_type in FILE_KEYS:
-            url = dl["URL_CSV"].format(data_root=data_root, date=date, f_type=f_type)
+            url = dl["url_csv"].format(data_root=data_root, date=date, f_type=f_type)
             jobs.append((url, folder / f"{f_type}.csv.gz"))
-
-        geojson_url = dl["URL_GEOJSON"].format(data_root=data_root, date=date)
-        jobs.append((geojson_url, folder / "neighbourhoods.geojson"))
 
     return jobs
 
@@ -104,27 +95,11 @@ def validate_csv(path: Path, file_type: str) -> str | None:
         return f"thiếu cột khóa: {', '.join(missing)}"
     return None
 
-def validate_geojson(path: Path) -> str | None:
-    try:
-        with open(path, encoding="utf-8") as f:
-            document = json.load(f)
-    except (OSError, UnicodeError, json.JSONDecodeError) as e:
-        return f"không đọc được GeoJSON ({e})"
-
-    if not isinstance(document, dict):
-        return "Nội dung GeoJSON phải là JSON"
-    if document.get("type") != "FeatureCollection":
-        return "GeoJSON không có type FeatureCollection"
-    if not isinstance(document.get("features"), list):
-        return "GeoJSON không có danh sách features"
-    return None
-
 # Tải file
-def download_file(url: str, dest: Path, file_type: str | None = None, force: bool = False) -> str:
+def download_file(url: str, dest: Path, file_type: str, force: bool = False) -> str:
     if dest.exists() and not force:
         if dest.stat().st_size > 0:
-            invalid_reason = (validate_csv(dest, file_type)
-                              if file_type else validate_geojson(dest))
+            invalid_reason = validate_csv(dest, file_type)
             if invalid_reason is None:
                 return "skipped"
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -143,8 +118,7 @@ def download_file(url: str, dest: Path, file_type: str | None = None, force: boo
 
             if tmp.stat().st_size == 0:
                 raise OSError("máy chủ trả về tệp rỗng")
-            invalid_reason = (validate_csv(tmp, file_type)
-                              if file_type else validate_geojson(tmp))
+            invalid_reason = validate_csv(tmp, file_type)
             if invalid_reason is not None:
                 raise OSError(f"tệp tải về không hợp lệ: {invalid_reason}")
 
@@ -169,7 +143,7 @@ def main() -> int:
 
     cfg_path = find_config(args.config).resolve()
     cfg = load_config(cfg_path)
-    out_root = Path(cfg["raw_dir"])
+    out_root = cfg_path.parent.parent / cfg["raw_dir"]
 
     jobs = build_jobs(cfg, out_root)
     stats = {"done": 0, "skipped": 0, "missing": 0, "failed": 0}

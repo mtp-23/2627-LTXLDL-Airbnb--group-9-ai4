@@ -5,18 +5,65 @@ source: Inside Airbnb
 data_root: chile/rm/santiago
 snapshots:
   - "2025-09-27"
-  - "2025-12-29" 
-  - "2026-03-30" 
+  - "2025-12-29"
+  - "2026-03-30"
   - "2026-06-29"
 
 download:
-  URL_CSV: https://data.insideairbnb.com/{data_root}/{date}/data/{f_type}.csv.gz
-  URL_GEOJSON: https://data.insideairbnb.com/{data_root}/{date}/visualisations/neighbourhoods.geojson
+  url_csv: https://data.insideairbnb.com/{data_root}/{date}/data/{f_type}.csv.gz
   f_type:
-    - "listings"
-    - "calendar"
-    - "reviews"
+    - listings
+    - calendar
+    - reviews
+
 raw_dir: data/raw
 processed_dir: data/processed
+
 qa:
+  sheet_id: 1xaMiF78Ta90IWm2oHESKD35IHCGEcOMbGiYfUbmiwxA
+  gid:
+    listing: 454441734
+    review: 2096394307
+    area: 903142397
+  
+  key_col:
+    Lớp: "UET.DSE2049 4"
+    Nhóm: 9
+  
+  #required
+  room_types:
+    Entire home/apt: 875
+    Private room: 125
+  
+  number_of_reviews: #num of review = 0 in snaps
+    2025-09-27: 50
+    2025-12-29: 30
+    2026-03-30: 25
+    2026-06-29: 25
+
+  missing_price: # missing price rows
+    2026-06-29: 20
+
+  area_min: 120 #listing per area (A0x)
+  area_max: 130
+
+  #
+  calendar_days: 365
+
+kpi:
+  area_col: neighbourhood_cleansed
+  
 llm:
+  provider: gemini
+  model: gemini-3.5-flash-lite
+  sample_size: 1000
+  aspects:
+    - location
+    - cleanliness
+    - host
+    - value
+    - amenities
+    - noise
+    - safety
+  cache: data/processed/llm_cache.jsonl
+  baseline_output: data/processed/baseline_results.jsonl
