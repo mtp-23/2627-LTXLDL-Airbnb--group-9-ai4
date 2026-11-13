@@ -55,13 +55,13 @@ def resolve_dir(cfg, key, default):
     p = Path(cfg.get(key) or default)
     return p if p.is_absolute() else ROOT / p
 
-def read_before_qa(raw_dir, snap):
-    """Dữ liệu trước QA của một snapshot: (listings, calendar) lấy từ data/raw/phan_cong/<ngày>/."""
+def read_raw_tables(folder, snap):
+    """Đọc (listings, calendar) của một snapshot trong thư mục `folder` (chỉ lấy các cột KPI cần)."""
     results = []
     for table in ("listings", "calendar"):
-        path = raw_dir / "phan_cong" / snap / f"{table}.csv.gz"
+        path = folder / f"{table}.csv.gz"
         if not path.exists():
-            raise SystemExit(f"Chưa có {path.relative_to(ROOT)}.\nHãy chạy qa.py trước (python src/qa.py).")
+            raise SystemExit(f"Chưa có {path.relative_to(ROOT)}.\nHãy tải dữ liệu (python src/download.py) và chạy qa.py trước.")
         columns = NEEDED_COLUMNS[table]
         df = pd.read_csv(path, dtype=str, usecols=lambda c: c in columns)
         for c in columns:
@@ -69,6 +69,14 @@ def read_before_qa(raw_dir, snap):
                 df[c] = pd.NA
         results.append(df[columns].reset_index(drop=True))
     return tuple(results)
+
+def read_before_qa(raw_dir, snap):
+    """Trước QA: toàn bộ dữ liệu thô tải về, lấy từ data/raw/<ngày>/ (chưa lọc theo phân công)."""
+    return read_raw_tables(raw_dir / snap, snap)
+
+def read_assigned_data(raw_dir, snap):
+    """Đầu vào của sau QA: dữ liệu của nhóm, lấy từ data/raw/phan_cong/<ngày>/ (đã lọc theo bảng phân công)."""
+    return read_raw_tables(raw_dir / "phan_cong" / snap, snap)
 
 def rows_flagged_for_exclusion(proc, snap, table, df):
     """True với dòng bị gắn cờ 'loại bỏ' trong file cờ do qa.py tạo."""
@@ -302,12 +310,12 @@ def run(config_path=None, snapshot=None, skip_llm=False, llm_cache=None):
     if snap not in cfg["snapshots"]:
         raise SystemExit(f"Snapshot {snap} không có trong config. Các mốc hợp lệ: {', '.join(cfg['snapshots'])}")
 
-    # ---- trước QA: chỉ cần data/raw/phan_cong của snapshot được chọn ----
+    # ---- trước QA: lấy từ data/raw/<ngày>/ (toàn bộ dữ liệu thô), chỉ cần snapshot được chọn ----
     listings_before, calendar_before = read_before_qa(raw_dir, snap)
-    # ---- sau QA: phan_cong liên kết với flagged; cần đủ các snapshot cho hình theo thời gian ----
+    # ---- sau QA: lấy từ data/raw/phan_cong/<ngày>/ liên kết với flagged; cần đủ 4 snapshot cho hình theo thời gian ----
     data_after_qa = {}
     for s in cfg["snapshots"]:
-        l, c = (listings_before, calendar_before) if s == snap else read_before_qa(raw_dir, s)
+        l, c = read_assigned_data(raw_dir, s)
         data_after_qa[s] = clean_after_qa(proc, s, l, c)
     listings_after, calendar_after = data_after_qa[snap]
     before, after = compute_kpi_1_to_5(listings_before, calendar_before), compute_kpi_1_to_5(listings_after, calendar_after)
