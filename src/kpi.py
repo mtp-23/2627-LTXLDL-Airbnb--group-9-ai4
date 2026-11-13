@@ -302,7 +302,7 @@ def run(config_path=None, snapshot=None, skip_llm=False, llm_cache=None):
     if snap not in cfg["snapshots"]:
         raise SystemExit(f"Snapshot {snap} không có trong config. Các mốc hợp lệ: {', '.join(cfg['snapshots'])}")
 
-    # ---- trước QA: chỉ cần data/raw/phan_cong của snapshot được chọn ----
+    # ---- trước QA: chỉ cần data/raw/ của snapshot được chọn ----
     listings_before, calendar_before = read_before_qa(raw_dir, snap)
     # ---- sau QA: phan_cong liên kết với flagged; cần đủ các snapshot cho hình theo thời gian ----
     data_after_qa = {}
