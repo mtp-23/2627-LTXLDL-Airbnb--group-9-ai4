@@ -20,3 +20,12 @@ raw_dir: data/raw
 processed_dir: data/processed
 qa:
 llm:
+  baseline_output: data/processed/baseline_results.jsonl
+  aspects:
+    - location
+    - cleanliness
+    - host
+    - value
+    - amenities
+    - noise
+    - safety
