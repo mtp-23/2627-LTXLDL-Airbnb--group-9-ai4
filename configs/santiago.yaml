@@ -11,6 +11,7 @@ snapshots:
 
 download:
   url_csv: https://data.insideairbnb.com/{data_root}/{date}/data/{f_type}.csv.gz
+  url_geojson: https://data.insideairbnb.com/{data_root}/{date}/visualisations/neighbourhoods.geojson
   f_type:
     - listings
     - calendar
@@ -46,8 +47,7 @@ qa:
 
   area_min: 120 #listing per area (A0x)
   area_max: 130
-
-  #
+  
   calendar_days: 365
 
 kpi:
@@ -57,6 +57,7 @@ llm:
   provider: gemini
   model: gemini-3.5-flash-lite
   sample_size: 1000
+  batch_size: 20
   aspects:
     - location
     - cleanliness

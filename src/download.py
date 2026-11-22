@@ -1,83 +1,67 @@
-import argparse
+"""Tải dữ liệu thô và kiểm tra toàn vẹn tệp tải về.
+
+Nhiệm vụ duy nhất: lấy tệp từ Inside Airbnb / Google Sheets về đĩa và đảm bảo
+tệp đọc được, có cột khóa. Không đọc cấu hình, không lọc, không làm sạch.
+"""
+from __future__ import annotations
+
 import csv
 import gzip
-import sys
+import json
 import time
 import zlib
 from pathlib import Path
 from urllib.parse import urlsplit
+
 import requests
-import yaml
 
 MAX_RETRIES = 3
 TIMEOUT = 60  # giây
 CHUNK = 1024 * 1024
 HEADERS = {"User-Agent": "Mozilla/5.0 (student-project; Inside Airbnb downloader)"}
-SNAPSHOT_COUNT = 4
+HOST = "data.insideairbnb.com"
 FILE_KEYS = {
     "listings": ("id",),
     "calendar": ("listing_id", "date"),
     "reviews": ("id",),
 }
+CSV_PATH = "/{data_root}/{date}/data/{f_type}.csv.gz"
+GEOJSON_PATH = "/{data_root}/{date}/visualisations/neighbourhoods.geojson"
 
-# Đọc cấu hình
-def find_config(arg: str | None) -> Path:
-    if arg:
-        if not Path(arg).exists():
-            sys.exit(f"Không tìm thấy file cấu hình: {Path(arg)}")
-        return Path(arg)
 
-    cf = Path(__file__).resolve().parent.parent
-    found = list((cf / "configs").glob("*.yaml"))
+def _check_url(template: str, expected_path: str, label: str) -> None:
+    parsed = urlsplit(template)
+    if parsed.scheme != "https" or parsed.hostname != HOST:
+        raise ValueError(f"{label} phải dùng HTTPS và host {HOST}.")
+    if parsed.path != expected_path:
+        raise ValueError(f"{label} phải theo mẫu .../{expected_path.lstrip('/')}.")
 
-    if not found:
-        sys.exit("Không tìm thấy .yaml")
-    return found[0]
 
-def load_config(path: Path) -> dict:
-    with open(path, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-    for key in ("data_root", "snapshots", "download", "raw_dir"):
-        if key not in cfg:
-            sys.exit(f"Thiếu khóa '{key}' trong configs")
-    for key in ("url_csv", "f_type"):
-        if key not in cfg["download"]:
-            sys.exit(f"Thiếu khóa '{key}' trong configs")
-
-    snapshots = cfg["snapshots"]
-    if not isinstance(snapshots, list) or len(snapshots) != SNAPSHOT_COUNT:
-        sys.exit(f"Cần đúng {SNAPSHOT_COUNT} mốc trong 'snapshots' của configs")
-    normalized_snapshots = [str(date) for date in snapshots]
-    if len(set(normalized_snapshots)) != SNAPSHOT_COUNT:
-        sys.exit(f"Các mốc trong 'snapshots' phải khác nhau trong configs")
-
-    file_types = cfg["download"]["f_type"]
+def build_jobs(download_cfg: dict, data_root: str, snapshots: list[str], out_root: Path):
+    """Danh sách (url, đường dẫn đích, loại tệp); loại tệp None nghĩa là GeoJSON."""
+    file_types = download_cfg.get("f_type")
     if not isinstance(file_types, list) or set(file_types) != set(FILE_KEYS):
-        sys.exit("[download][f_type] phải bao gồm listings, calendar và reviews.")
+        raise ValueError("download.f_type phải gồm listings, calendar và reviews.")
+    csv_url = download_cfg.get("url_csv")
+    if not csv_url:
+        raise ValueError("Thiếu download.url_csv trong cấu hình.")
+    _check_url(csv_url, CSV_PATH, "url_csv")
+    geojson_url = download_cfg.get("url_geojson")  # tùy chọn: chỉ cần cho bản đồ
+    if geojson_url:
+        _check_url(geojson_url, GEOJSON_PATH, "url_geojson")
 
-    url_template = cfg["download"]["url_csv"]
-    parsed_url = urlsplit(url_template)
-    if parsed_url.scheme != "https" or parsed_url.hostname != "data.insideairbnb.com":
-        sys.exit("url_csv phải dùng HTTPS và host data.insideairbnb.com.")
-    if parsed_url.path != "/{data_root}/{date}/data/{f_type}.csv.gz":
-        sys.exit("url_csv phải theo mẫu .../{data_root}/{date}/data/{f_type}.csv.gz.")
-    return cfg
-
-# Tạo danh sách tải
-def build_jobs(cfg: dict, out_root: Path):
-    dl = cfg["download"]
-    data_root = cfg["data_root"].strip("/")
+    data_root = data_root.strip("/")
     jobs = []
-
-    for date in cfg["snapshots"]:
-        date = str(date)  # phòng trường hợp YAML tự hiểu thành kiểu ngày
-        folder = out_root / date
-
+    for date in snapshots:
+        folder = out_root / str(date)
         for f_type in FILE_KEYS:
-            url = dl["url_csv"].format(data_root=data_root, date=date, f_type=f_type)
-            jobs.append((url, folder / f"{f_type}.csv.gz"))
-
+            url = csv_url.format(data_root=data_root, date=date, f_type=f_type)
+            jobs.append((url, folder / f"{f_type}.csv.gz", f_type))
+        if geojson_url:
+            url = geojson_url.format(data_root=data_root, date=date)
+            jobs.append((url, folder / "neighbourhoods.geojson", None))
     return jobs
+
 
 def validate_csv(path: Path, file_type: str) -> str | None:
     try:
@@ -85,23 +69,33 @@ def validate_csv(path: Path, file_type: str) -> str | None:
             header = next(csv.reader(f), None)
     except (OSError, EOFError, UnicodeError, csv.Error, zlib.error) as e:
         return f"không đọc được CSV gzip ({e})"
-
     if not header:
         return "tệp rỗng hoặc không có header"
-
     columns = {column.strip() for column in header}
     missing = [key for key in FILE_KEYS[file_type] if key not in columns]
     if missing:
         return f"thiếu cột khóa: {', '.join(missing)}"
     return None
 
-# Tải file
-def download_file(url: str, dest: Path, file_type: str, force: bool = False) -> str:
-    if dest.exists() and not force:
-        if dest.stat().st_size > 0:
-            invalid_reason = validate_csv(dest, file_type)
-            if invalid_reason is None:
-                return "skipped"
+
+def validate_geojson(path: Path) -> str | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            document = json.load(f)
+    except (OSError, UnicodeError, json.JSONDecodeError) as e:
+        return f"không đọc được GeoJSON ({e})"
+    if not isinstance(document, dict) or document.get("type") != "FeatureCollection":
+        return "GeoJSON không có type FeatureCollection"
+    if not isinstance(document.get("features"), list):
+        return "GeoJSON không có danh sách features"
+    return None
+
+
+def download_file(url: str, dest: Path, file_type: str | None, force: bool = False) -> str:
+    """Trả về 'skipped' | 'done' | 'missing' (404) | 'failed'."""
+    validate = (lambda p: validate_csv(p, file_type)) if file_type else validate_geojson
+    if dest.exists() and not force and dest.stat().st_size > 0 and validate(dest) is None:
+        return "skipped"
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
 
@@ -115,54 +109,39 @@ def download_file(url: str, dest: Path, file_type: str, force: bool = False) -> 
                     for chunk in r.iter_content(CHUNK):
                         if chunk:
                             f.write(chunk)
-
             if tmp.stat().st_size == 0:
                 raise OSError("máy chủ trả về tệp rỗng")
-            invalid_reason = validate_csv(tmp, file_type)
-            if invalid_reason is not None:
-                raise OSError(f"tệp tải về không hợp lệ: {invalid_reason}")
-
+            reason = validate(tmp)
+            if reason is not None:
+                raise OSError(f"tệp tải về không hợp lệ: {reason}")
             tmp.replace(dest)  # chỉ đổi tên khi tải xong hoàn toàn
             return "done"
-
         except (requests.RequestException, OSError) as e:
-            print(f"\n[lỗi] lần {attempt}/{MAX_RETRIES}: {e}")
-            if tmp.exists():
-                tmp.unlink()
+            print(f"[lỗi] {dest.name} lần {attempt}/{MAX_RETRIES}: {e}")
+            tmp.unlink(missing_ok=True)
             if attempt < MAX_RETRIES:
                 time.sleep(2 * attempt)
-
     return "failed"
 
-# Main
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config")
-    ap.add_argument("--force", action="store_true")
-    args = ap.parse_args()
 
-    cfg_path = find_config(args.config).resolve()
-    cfg = load_config(cfg_path)
-    out_root = cfg_path.parent.parent / cfg["raw_dir"]
-
-    jobs = build_jobs(cfg, out_root)
+def download_all(download_cfg: dict, data_root: str, snapshots: list[str],
+                 out_root: Path, force: bool = False) -> dict:
+    """Tải đủ các mốc; trả về thống kê {'done','skipped','missing','failed'}."""
     stats = {"done": 0, "skipped": 0, "missing": 0, "failed": 0}
-    current_snapshot = None
+    current = None
+    for url, dest, file_type in build_jobs(download_cfg, data_root, snapshots, out_root):
+        if dest.parent.name != current:
+            current = dest.parent.name
+            print(f"Đang tải mốc {current}!")
+        stats[download_file(url, dest, file_type, force)] += 1
+    return stats
 
-    for url, dest in jobs:
-        snapshot = dest.parent.name
-        if snapshot != current_snapshot:
-            print(f"Đang tải mốc {snapshot}!")
-            current_snapshot = snapshot
 
-        file_type = (dest.name.removesuffix(".csv.gz")
-                     if dest.name.endswith(".csv.gz") else None)
-        stats[download_file(url, dest, file_type, args.force)] += 1
-
-    print(f"\nTải mới: {stats['done']}\nĐã có: {stats['skipped']}\nKhông tìm thấy: {stats['missing']}\nLỗi: {stats['failed']}")
-    if stats["missing"]:
-        print("\nKiểm tra lại mốc")
-    return 1 if stats["failed"] or stats["missing"] else 0
-
-if __name__ == "__main__":
-    sys.exit(main())
+def fetch_sheet(sheet_id: str, gid: int | str) -> bytes:
+    """Tải một sheet Google dưới dạng CSV (bytes); người gọi quyết định lưu ở đâu."""
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+    r.raise_for_status()
+    if not r.content:
+        raise OSError(f"Google Sheets trả về dữ liệu rỗng (gid={gid})")
+    return r.content
