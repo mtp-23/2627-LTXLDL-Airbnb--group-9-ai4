@@ -1,33 +1,23 @@
-"""Mô-đun trích xuất cấu trúc và phân tích cảm xúc đánh giá bằng Gemini LLM.
+"""Trích xuất cảm xúc, khía cạnh và ngôn ngữ của review bằng Gemini.
 
-- Lọc review sạch sau QA và đọc mốc từ config YAML.
-- Ưu tiên 1.000 review được giao ('Mẫu LLM' == 'x' trong review.csv).
-- Rate limit 12 RPM, tự động retry khi gặp lỗi 429/5xx.
-- Cơ chế cache JSONL và cờ --skip-llm cho môi trường không có API Key.
+Nhiệm vụ duy nhất: gửi review lên LLM và trả về kết quả có cấu trúc.
+Không đọc/ghi tệp (cache, CSV), không đọc cấu hình hay biến môi trường,
+không chọn review (việc của run_pipeline.py). Khóa API do người gọi truyền vào.
 """
-
 from __future__ import annotations
 
-import argparse
-import asyncio
-from enum import Enum
 import json
-import os
-from pathlib import Path
-import sys
-from typing import Any, Dict, List, Optional, Set
+import math
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
+import pandas as pd
 from aiolimiter import AsyncLimiter
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
-import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
-import yaml
-
-load_dotenv()
 
 
 # ==========================================
@@ -71,6 +61,36 @@ class BatchReviewResponse(BaseModel):
     results: List[ReviewAnalysis]
 
 
+# Nguồn duy nhất của tập nhãn cảm xúc (thứ tự positive, mixed, negative) và khía cạnh mặc định
+SENTIMENTS = [s.value for s in SentimentEnum]
+DEFAULT_ASPECTS = [a.value for a in AspectCategoryEnum]
+RESULT_COLUMNS = ["review_id", "sentiment", "aspects_positive", "aspects_negative", "language"]
+
+
+def _batch_schema(aspects: Optional[List[str]] = None) -> Tuple[Type[BaseModel], List[str]]:
+    """Trả về (Pydantic Batch Schema, danh sách khía cạnh) khớp cấu hình."""
+    if aspects is None or list(aspects) == DEFAULT_ASPECTS:
+        return BatchReviewResponse, list(DEFAULT_ASPECTS)
+    active = [str(a).strip().lower() for a in aspects if str(a).strip()]
+    if not active:
+        raise ValueError("aspects không được rỗng")
+    aspect_enum = Enum("DynamicAspectCategoryEnum", {f"A{i}": a for i, a in enumerate(active)}, type=str)
+    aspect_detail = create_model(
+        "DynamicAspectDetail",
+        category=(aspect_enum, ...),
+        sentiment=(AspectPolarityEnum, ...),
+        description=(Optional[str], Field(default=None, description="Trích dẫn ngắn gọn từ review minh chứng")),
+    )
+    review_analysis = create_model(
+        "DynamicReviewAnalysis",
+        review_id=(str, ...),
+        overall_sentiment=(SentimentEnum, ...),
+        language=(str, Field(default="en", description="Mã ngôn ngữ ISO 639-1 hai ký tự")),
+        aspects=(List[aspect_detail], Field(default_factory=list, description="Danh sách các khía cạnh khen/chê")),
+    )
+    batch_response = create_model("DynamicBatchReviewResponse", results=(List[review_analysis], ...))
+    return batch_response, active
+
 # ==========================================
 # 2. RATE LIMIT & GEMINI API CALL
 # ==========================================
@@ -84,17 +104,19 @@ def is_rate_limit_error(e: BaseException) -> bool:
 @retry(
     retry=retry_if_exception(is_rate_limit_error),
     wait=wait_exponential(multiplier=2, min=4, max=60),
-    stop=stop_after_attempt(5)
+    stop=stop_after_attempt(5),
 )
 async def process_batch_with_gemini(
     client: genai.Client,
     batch_df: pd.DataFrame,
-    model_name: str = "gemini-3.5-flash-lite"
+    model_name: str,
+    aspects: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
+    schema_cls, active_aspects = _batch_schema(aspects)
     input_data = batch_df[["id", "comments"]].to_dict(orient="records")
     prompt = f"""Bạn là chuyên gia phân tích dữ liệu Airbnb. Phân tích các đánh giá sau theo chuẩn:
 1. overall_sentiment: 'positive' (khen/hài lòng), 'negative' (chê/trải nghiệm tệ), 'mixed' (cân bằng khen và chê).
-2. aspects: Chỉ gán các khía cạnh thuộc 7 nhóm: location, cleanliness, host, value, amenities, noise, safety.
+2. aspects: Chỉ gán các khía cạnh thuộc {len(active_aspects)} nhóm: {', '.join(active_aspects)}.
    Với mỗi khía cạnh, chỉ định rõ sentiment là 'positive' (khen) hoặc 'negative' (chê).
 3. language: Mã ngôn ngữ ISO 639-1 (ví dụ: en, es, vi).
 Giữ nguyên review_id.
@@ -108,275 +130,76 @@ Danh sách đánh giá:
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=BatchReviewResponse,
-                temperature=0.0
-            )
+                response_schema=schema_cls,
+                temperature=0.0,
+            ),
         )
-        parsed = BatchReviewResponse.model_validate_json(response.text)
-        return [item.model_dump() for item in parsed.results]
+        parsed = schema_cls.model_validate_json(response.text)
+        return [item.model_dump(mode="json") for item in parsed.results]
+
+
+async def analyze_reviews(
+    reviews: pd.DataFrame,
+    api_key: str,
+    model_name: str,
+    batch_size: Optional[int] = 20,
+    aspects: Optional[List[str]] = None,
+    on_batch: Optional[Callable[[List[Dict[str, Any]]], None]] = None,
+    log: Callable[[str], None] = print,
+) -> List[Dict[str, Any]]:
+    """Phân tích các review (cột id, comments) theo lô; batch lỗi được bỏ qua và ghi log.
+
+    on_batch được gọi ngay sau mỗi lô thành công để người gọi lưu tiến độ.
+    """
+    batch_size = batch_size 
+    client = genai.Client(api_key=api_key)
+    batches = [reviews.iloc[i:i + batch_size] for i in range(0, len(reviews), batch_size)]
+    results: List[Dict[str, Any]] = []
+    for i, batch in enumerate(batches, 1):
+        try:
+            log(f"Đang xử lý batch {i}/{len(batches)} ({len(batch)} reviews)...")
+            batch_results = await process_batch_with_gemini(client, batch, model_name, aspects=aspects)
+        except Exception as e:  # lỗi một lô không làm dừng cả pipeline
+            log(f"Lỗi ở batch {i}: {e}")
+            continue
+        results.extend(batch_results)
+        if on_batch:
+            on_batch(batch_results)
+    return results
 
 
 # ==========================================
-# 3. DATA LOADER & CACHE HELPERS
+# 3. CHUYỂN KẾT QUẢ & ƯỚC TÍNH CHI PHÍ
 # ==========================================
-def get_assigned_llm_ids(project_root: Path) -> Optional[Set[str]]:
-    assign_file = project_root / "data" / "raw" / "phan_cong" / "review.csv.gz"
-    if not assign_file.exists():
-        return None
-
-    df_assign = pd.read_csv(assign_file, dtype=str)
-    if "Mẫu LLM" not in df_assign.columns or "review_id" not in df_assign.columns:
-        return None
-
-    is_assigned = (
-        df_assign["Mã dữ liệu"].astype(str).str.strip().eq("DSE2049-C04-G09-santiago")
-        & df_assign["Mẫu LLM"].astype(str).str.strip().str.lower().eq("x")
-    )
-    assigned = set(
-        df_assign.loc[is_assigned, "review_id"].dropna().astype(str).str.strip()
-    )
-    if assigned:
-        print(f"Tìm thấy {len(assigned)} review được phân công!")
-    return assigned or None
+def flatten_results(records: List[Dict[str, Any]]) -> pd.DataFrame:
+    """Kết quả LLM (một dict/review) -> bảng phẳng: review_id, sentiment, aspects_positive, aspects_negative, language."""
+    rows = []
+    for data in records:
+        aspects = data.get("aspects", [])
+        rows.append({
+            "review_id": str(data.get("review_id", "")),
+            "sentiment": data.get("overall_sentiment", ""),
+            "aspects_positive": ", ".join(a["category"] for a in aspects if a.get("sentiment") == "positive"),
+            "aspects_negative": ", ".join(a["category"] for a in aspects if a.get("sentiment") == "negative"),
+            "language": data.get("language", ""),
+        })
+    return pd.DataFrame(rows, columns=RESULT_COLUMNS)
 
 
-def resolve_reviews_file(raw_dir: Path, target_snapshot: Optional[str], explicit_path: Optional[str]) -> Path:
-    if explicit_path and Path(explicit_path).exists():
-        return Path(explicit_path)
-    if target_snapshot:
-        candidate = raw_dir / target_snapshot / "reviews.csv.gz"
-        if candidate.exists():
-            return candidate
-
-    candidates = list(raw_dir.glob("**/reviews.csv.gz"))
-    if candidates:
-        return candidates[0]
-
-    raise FileNotFoundError(f"Không tìm thấy file reviews trong {raw_dir}. Chạy python src/download.py trước!")
-
-
-def load_clean_reviews_after_qa(
-    cfg: Dict[str, Any],
-    snapshot: Optional[str] = None,
-    explicit_path: Optional[str] = None,
-    assigned_ids: Optional[Set[str]] = None
-) -> pd.DataFrame:
-    project_root = Path(__file__).resolve().parent.parent
-    processed_dir = project_root / cfg.get("processed_dir", "data/processed")
-    snapshots = [str(s) for s in cfg.get("snapshots", [])]
-    target_snapshots = (
-        [str(snapshot)]
-        if snapshot
-        else [Path(explicit_path).parent.name] if explicit_path else snapshots
-    )
-    raw_dir = project_root / "data" / "raw" / "phan_cong"
-
-    if not target_snapshots:
-        raise ValueError("Config không có snapshot để đọc review.")
-
-    review_frames = []
-    invalid_ids = set()
-    for target_snapshot in target_snapshots:
-        reviews_file = (Path(explicit_path) if explicit_path
-                        else raw_dir / target_snapshot / "reviews.csv.gz")
-        if not reviews_file.exists():
-            raise FileNotFoundError(f"Không tìm thấy reviews trong mốc {target_snapshot}")
-        print(f"Đọc review từ: {target_snapshot}")
-
-        snapshot_reviews = pd.read_csv(reviews_file, low_memory=False)
-        if "review_id" in snapshot_reviews.columns and "id" not in snapshot_reviews.columns:
-            snapshot_reviews = snapshot_reviews.rename(columns={"review_id": "id"})
-        if "id" not in snapshot_reviews.columns or "comments" not in snapshot_reviews.columns:
-            raise ValueError(f"{reviews_file} phải có cột id và comments")
-        snapshot_reviews["id"] = snapshot_reviews["id"].astype(str).str.strip()
-
-        flags_file = processed_dir / "flagged" / target_snapshot / "reviews_flags.csv.gz"
-        if not flags_file.exists():
-            raise FileNotFoundError(f"Không tìm thấy file cờ QA trong {target_snapshot}")
-        flags = pd.read_csv(flags_file)
-        if "id" not in flags.columns or "missing_comments" not in flags.columns:
-            raise ValueError(f" flagged/{target_snapshot} phải có cột id và missing_comments")
-        flags["id"] = flags["id"].astype(str).str.strip()
-        invalid_ids.update(
-            flags.loc[flags["missing_comments"].fillna(False).astype(bool), "id"]
-        )
-        review_frames.append(snapshot_reviews[["id", "comments"]])
-
-    df = pd.concat(review_frames, ignore_index=True)
-    if assigned_ids:
-        df = df[df["id"].isin(assigned_ids)]
-        print(f"Khớp chính xác {df['id'].nunique()} / {len(assigned_ids)} review được giao.")
-
-    df = df[~df["id"].isin(invalid_ids)]
-    df = df.dropna(subset=["comments"])
-    df = df[df["comments"].astype(str).str.strip().ne("")]
-    df = df.drop_duplicates(subset=["id"], keep="last")
-    return df[["id", "comments"]]
-
-
-def load_cached_ids(cache_path: str | Path) -> Set[str]:
-    cache_file = Path(cache_path)
-    if not cache_file.exists():
-        return set()
-
-    with open(cache_file, "r", encoding="utf-8") as f:
-        return {
-            str(d["review_id"])
-            for line in f
-            if line.strip()
-            for d in [json.loads(line)]
-            if "review_id" in d
-        }
-
-
-def export_cache_to_csv(
-    cache_path: str | Path,
-    output_csv_path: str | Path,
-    target_ids: Optional[Set[str]] = None
-) -> pd.DataFrame:
-    cache_file, out_csv = Path(cache_path), Path(output_csv_path)
-    out_csv.parent.mkdir(parents=True, exist_ok=True)
-
-    if not cache_file.exists():
-        df_empty = pd.DataFrame(columns=["review_id", "sentiment", "aspects_positive", "aspects_negative", "language"])
-        df_empty.to_csv(out_csv, index=False, encoding="utf-8")
-        return df_empty
-
-    rows, seen_ids = [], set()
-    with open(cache_file, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            data = json.loads(line)
-            rid = str(data.get("review_id", ""))
-            if not rid or rid in seen_ids or (target_ids is not None and rid not in target_ids):
-                continue
-
-            seen_ids.add(rid)
-            aspects = data.get("aspects", [])
-            rows.append({
-                "review_id": rid,
-                "sentiment": data.get("overall_sentiment", ""),
-                "aspects_positive": ", ".join(a["category"] for a in aspects if a.get("sentiment") == "positive"),
-                "aspects_negative": ", ".join(a["category"] for a in aspects if a.get("sentiment") == "negative"),
-                "language": data.get("language", "")
-            })
-
-    df = pd.DataFrame(rows, columns=["review_id", "sentiment", "aspects_positive", "aspects_negative", "language"])
-    df.to_csv(out_csv, index=False, encoding="utf-8")
-    print(f"Đã xuất {len(df)} kết quả LLM ra: {out_csv}")
-    return df
-
-
-# ==========================================
-# 4. PIPELINE & COST ESTIMATION
-# ==========================================
-def estimate_total_cost(total_reviews: int, avg_input_chars: int = 300) -> Dict[str, Any]:
-    total_input = total_reviews * (150 + avg_input_chars / 4)
+def estimate_total_cost(total_reviews: int, avg_input_chars: int = 300, batch_size: int = 20) -> Dict[str, Any]:
+    """Ước tính chi phí xử lý `total_reviews` review (giá Gemini Flash-Lite, USD), tính system prompt theo lô."""
+    batch_size = batch_size 
+    num_batches = math.ceil(total_reviews / batch_size) if total_reviews else 0
+    total_input = num_batches * 150 + total_reviews * (avg_input_chars / 4 + 15)
     total_output = total_reviews * 80
     input_cost = (total_input / 1_000_000) * 0.30
     output_cost = (total_output / 1_000_000) * 2.50
     return {
         "total_reviews": total_reviews,
+        "batch_size": batch_size,
+        "estimated_input_tokens": round(total_input),
+        "estimated_output_tokens": round(total_output),
         "estimated_input_cost_usd": round(input_cost, 4),
         "estimated_output_cost_usd": round(output_cost, 4),
-        "total_cost_usd": round(input_cost + output_cost, 4)
+        "total_cost_usd": round(input_cost + output_cost, 4),
     }
-
-
-async def run_llm_pipeline(
-    config_path: str = "configs/santiago.yaml",
-    snapshot: Optional[str] = None,
-    reviews_path: Optional[str] = None,
-    cache_path: Optional[str] = None,
-    output_csv: Optional[str] = None,
-    sample_size: Optional[int] = None,
-    batch_size: int = 50,
-    skip_llm: bool = False
-) -> pd.DataFrame:
-    project_root = Path(__file__).resolve().parent.parent
-
-    # Nạp cấu hình YAML
-    cfg: Dict[str, Any] = {}
-    if Path(config_path).exists():
-        with open(config_path, "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f) or {}
-
-    llm_cfg = cfg.get("llm") or {}
-    model_name = llm_cfg.get("model") or "gemini-3.5-flash-lite"
-    cache_file = Path(cache_path or llm_cfg.get("cache") or "data/processed/llm_cache.jsonl")
-    out_csv = Path(output_csv or "data/processed/llm_results.csv")
-    target_sample_size = sample_size or llm_cfg.get("sample_size") or 1000
-    seed = llm_cfg.get("seed") or 42
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-
-    assigned_ids = get_assigned_llm_ids(project_root)
-
-    # Chế độ Skip LLM (chạy offline / test)
-    if skip_llm:
-        print(f"[--skip-llm] Bỏ qua gọi API Gemini. Xuất cache có sẵn sang {out_csv}...")
-        return export_cache_to_csv(cache_file, out_csv, target_ids=assigned_ids)
-
-    # Kiểm tra API key
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("API_KEY")
-    if not api_key:
-        print("Không tìm thấy API key. Dùng --skip-llm để chạy offline bằng cache.")
-        if cache_file.exists():
-            return export_cache_to_csv(cache_file, out_csv, target_ids=assigned_ids)
-        raise ValueError("Thiếu API Key! Đặt GEMINI_API_KEY trong .env")
-
-    client = genai.Client(api_key=api_key)
-    processed_ids = load_cached_ids(cache_file)
-
-    # Lọc dữ liệu sau QA
-    df_clean = load_clean_reviews_after_qa(cfg, snapshot, reviews_path, assigned_ids)
-    df_target = df_clean if assigned_ids else df_clean.sample(n=min(target_sample_size, len(df_clean)), random_state=seed)
-
-    pending_df = df_target[~df_target["id"].isin(processed_ids)]
-    print(f"Mục tiêu: {len(df_target)} | Đã cache: {len(processed_ids.intersection(set(df_target['id'])))} | Cần gửi LLM: {len(pending_df)}")
-
-    if not pending_df.empty:
-        batches = [pending_df.iloc[i:i + batch_size] for i in range(0, len(pending_df), batch_size)]
-        for i, batch_df in enumerate(batches):
-            try:
-                print(f"Đang xử lý batch {i+1}/{len(batches)} ({len(batch_df)} reviews)...")
-                results = await process_batch_with_gemini(client, batch_df, model_name=model_name)
-                with open(cache_file, "a", encoding="utf-8") as f:
-                    for res in results:
-                        f.write(json.dumps(res, ensure_ascii=False) + "\n")
-            except Exception as e:
-                print(f"Lỗi ở batch {i+1}: {e}")
-
-    return export_cache_to_csv(cache_file, out_csv, target_ids=assigned_ids)
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Trích xuất dữ liệu có cấu trúc từ 1.000 review phân công bằng Gemini")
-    parser.add_argument("--config", default="configs/santiago.yaml", help="Đường dẫn file cấu hình YAML")
-    parser.add_argument("--snapshot", default=None, help="Mốc snapshot cần phân tích")
-    parser.add_argument("--reviews-path", default=None, help="Đường dẫn file reviews.csv(.gz)")
-    parser.add_argument("--cache", default=None, help="Đường dẫn file cache JSONL")
-    parser.add_argument("--output-csv", default=None, help="Đường dẫn file CSV kết quả")
-    parser.add_argument("--sample-size", type=int, default=None, help="Cỡ mẫu phân tích")
-    parser.add_argument("--skip-llm", action="store_true", help="Bỏ qua gọi API, chỉ dùng cache")
-    parser.add_argument("--estimate-cost", type=int, default=None, help="Ước tính chi phí cho N reviews")
-    args = parser.parse_args()
-
-    if args.estimate_cost is not None:
-        print(json.dumps(estimate_total_cost(args.estimate_cost), indent=2, ensure_ascii=False))
-        return 0
-
-    asyncio.run(run_llm_pipeline(
-        config_path=args.config,
-        snapshot=args.snapshot,
-        reviews_path=args.reviews_path,
-        cache_path=args.cache,
-        output_csv=args.output_csv,
-        sample_size=args.sample_size,
-        skip_llm=args.skip_llm
-    ))
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

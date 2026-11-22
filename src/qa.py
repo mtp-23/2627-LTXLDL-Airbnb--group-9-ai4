@@ -1,33 +1,32 @@
-import gzip
-import os
-from pathlib import Path
+"""QA: bộ quy tắc kiểm tra chất lượng và gắn cờ dòng vi phạm.
+
+Nhiệm vụ duy nhất: nhận bảng đã được phân công (DataFrame) và trả về bảng cờ.
+Chỉ gắn cờ, KHÔNG xóa/sửa dòng. Không đọc/ghi tệp, không tải dữ liệu,
+không chọn dữ liệu theo phân công (việc của assign.py).
+"""
+from __future__ import annotations
 
 import pandas as pd
-import requests
-import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = ROOT / "configs" / "santiago.yaml"
-SHEETS = ("listing", "review", "area")
 TABLES = {"listings": ["id"], "calendar": ["listing_id", "date"], "reviews": ["id"]}
 REQUIRED = {
-    "listings": {"id", "analysis_area", "neighbourhood_cleansed", "room_type", "number_of_reviews", "last_review", "price", "latitude", "longitude"},
+    "listings": {"id", "analysis_area", "neighbourhood_cleansed", "room_type", "number_of_reviews", "number_of_reviews_ltm", "last_review", "price", "latitude", "longitude"},
     "calendar": {"listing_id", "date", "available"},
     "reviews": {"id", "date", "comments"},
 }
-ROOM_TYPES = {"Entire home/apt", "Private room", "Shared room", "Hotel room"}
+ROOM_TYPES = ("Entire home/apt", "Private room", "Shared room", "Hotel room")
 AREA_COLS = ["lon_min", "lat_min", "lon_max", "lat_max"]
-CAL_DAYS = 365  # calendar của Inside Airbnb luôn phủ 365 ngày/listing
+AREA_SHEET_REQUIRED = {"Thành phố", "analysis_area", *AREA_COLS}
 
 # rules: (name, condition, reason, todo)
 RULES = [
     ("missing_neigh_cleansed", "neighbourhood_cleansed bị thiếu/None/null", "Không thể phân nhóm listing theo khu vực", "Gắn cờ"),
     ("missing_room_type", "room_type bị thiếu/None/null", "Không thể xác định loại phòng để tính tỷ lệ", "Gắn cờ"),
-    ("missing_number_of_reviews", "number_of_reviews bị thiếu/None/null", "Không thể xác định listing có review hay không hoặc tính số review trung bình", "Gắn cờ"),
-    ("missing_price", "price bị thiếu/None/null (chỉ xét ở mốc cuối)", "Không thể sử dụng giá listing trong các phân tích cần đến giá", "Gắn cờ"),
+    ("missing_number_of_reviews", "number_of_reviews hoặc number_of_reviews_ltm bị thiếu/None/null", "Không thể xác định listing không có review 12 tháng qua hoặc tính số review trung bình", "Gắn cờ"),
+    ("missing_price", "price bị thiếu/None/null (chỉ xét ở mốc cuối)", "Không thể sử dụng giá listing để tính giá thuê trung bình ở mốc cuối", "Gắn cờ"),
     ("missing_review_date", "date bị thiếu/None/null trong reviews", "Không thể xác định thời điểm review được tạo", "Gắn cờ"),
     ("missing_comments", "comments bị thiếu/None/null hoặc chỉ chứa khoảng trắng", "Không có nội dung để phân tích cảm xúc bằng LLM", "Gắn cờ và loại khỏi tập đầu vào LLM nếu không có nội dung"),
-    ("invalid_reviews_num", "number_of_reviews không phải số nguyên hợp lệ", "Không thể tính chính xác số review và các KPI liên quan", "Gắn cờ"),
+    ("invalid_reviews_num", "number_of_reviews hoặc number_of_reviews_ltm không phải số nguyên hợp lệ", "Không thể tính chính xác số review và các KPI liên quan", "Gắn cờ"),
     ("invalid_room_type", "room_type không thuộc danh mục loại phòng được chấp nhận", "Có thể làm sai tỷ lệ các loại phòng", "Gắn cờ"),
     ("invalid_price", "price không thể chuyển thành giá trị số hợp lệ hoặc bị âm (chỉ xét ở mốc cuối)", "Không thể sử dụng giá trong các phép tính", "Gắn cờ"),
     ("invalid_calendar_date", "date không chuyển được sang kiểu ngày hợp lệ", "Không thể phân tích lịch theo thời gian", "Gắn cờ"),
@@ -37,155 +36,48 @@ RULES = [
     ("outlier_price", "price nằm ngoài ngưỡng IQR (chỉ xét ở mốc cuối)", "Giá bất thường có thể ảnh hưởng đến phân tích giá", "Gắn cờ"),
     ("dup_listing_id", "id xuất hiện nhiều hơn một lần trong cùng snapshot listings", "Có thể làm tăng sai số lượng listing và ảnh hưởng các KPI", "Gắn cờ"),
     ("dup_cal_key", "Cặp (listing_id, date) xuất hiện nhiều hơn một lần trong cùng snapshot calendar", "Một listing có thể bị đếm nhiều lần trong cùng một ngày", "Gắn cờ"),
+    ("calendar_days_per_listing_mismatch", "Một listing có số ngày hoặc số ngày duy nhất trong calendar khác 365", "Dữ liệu lịch không phủ đủ 365 ngày có thể làm sai tỷ lệ ngày đặt phòng", "Gắn cờ"),
     ("dup_review_id_in_snapshot", "ID review xuất hiện nhiều hơn một lần trong cùng snapshot reviews", "Có thể khiến một review bị đếm nhiều lần", "Gắn cờ"),
     ("dup_review_id_across_snapshots", "ID review xuất hiện ở nhiều snapshot khác nhau", "Review cũ thường được giữ lại ở snapshot sau; cần kiểm tra nhưng không tự loại", "Gắn cờ"),
     ("reviews_inconsistent", "number_of_reviews = 0 nhưng có review_scores_*/last_review, hoặc ngược lại", "Mâu thuẫn", "Gắn cờ"),
 ]
 
-def _atomic(path, write):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        write(tmp)
-        os.replace(tmp, path)
-    finally:
-        tmp.unlink(missing_ok=True)
+RULE_META = {
+    "missing_neigh_cleansed": ("listings", ["KPI1", "KPI2"]),
+    "missing_room_type": ("listings", ["KPI2"]),
+    "missing_number_of_reviews": ("listings", ["KPI3", "KPI4"]),
+    "missing_price": ("listings", ["KPI6"]),
+    "invalid_reviews_num": ("listings", ["KPI3", "KPI4"]),
+    "invalid_room_type": ("listings", ["KPI2"]),
+    "invalid_price": ("listings", ["KPI6"]),
+    "invalid_area": ("listings", []),
+    "outlier_price": ("listings", ["KPI6"]),
+    "dup_listing_id": ("listings", ["KPI1", "KPI2", "KPI3", "KPI4", "KPI6"]),
+    "reviews_inconsistent": ("listings", ["KPI3", "KPI4"]),
+    "invalid_calendar_date": ("calendar", ["KPI5"]),
+    "invalid_calendar_available": ("calendar", ["KPI5"]),
+    "dup_cal_key": ("calendar", ["KPI5"]),
+    "calendar_days_per_listing_mismatch": ("calendar", ["KPI5"]),
+    "missing_review_date": ("reviews", []),
+    "missing_comments": ("reviews", ["KPI7", "KPI8"]),
+    "invalid_review_date": ("reviews", []),
+    "dup_review_id_in_snapshot": ("reviews", ["KPI7", "KPI8"]),
+    "dup_review_id_across_snapshots": ("reviews", ["KPI7", "KPI8"]),
+}
 
-def _write_csv(data, path):
-    _atomic(path, lambda t: data.to_csv(t, index=False, encoding="utf-8", compression="gzip"))
-
-def _read_csv(path):
-    return pd.read_csv(path, dtype=str, keep_default_na=False)
-
-def _snapshots(config):
-    s = config.get("snapshots")
-    assert isinstance(s, list) and s and len(set(s)) == len(s), "'snapshots' phải là danh sách không rỗng, không trùng"
-    assert all(isinstance(x, str) and x.strip() for x in s), "Tên snapshot không hợp lệ"
-    return s
-
-def _read_config():
-    config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
-    assert isinstance(config, dict), "File YAML không chứa cấu hình hợp lệ"
-    snaps, qa = _snapshots(config), config.get("qa")
-    assert isinstance(qa, dict), "Thiếu mục 'qa' trong file cấu hình"
-    assert isinstance(qa.get("sheet_id"), str) and qa["sheet_id"].strip(), "Thiếu 'qa.sheet_id' trong file cấu hình"
-    for k in ("gid", "key_col", "room_types", "number_of_reviews", "missing_price"):
-        assert isinstance(qa.get(k), dict), f"Thiếu 'qa.{k}' trong file cấu hình"
-    assert all(isinstance(qa.get(k), int) for k in ("area_min", "area_max")), "Thiếu 'qa.area_min'/'qa.area_max'"
-    assert set(qa["gid"]) == set(SHEETS), "'qa.gid' phải chứa listing, review và area"
-    assert qa["key_col"], "Thiếu 'qa.key_col' trong file cấu hình"
-    for k in ("number_of_reviews", "missing_price"):  # YAML tự đổi khóa ngày thành kiểu date
-        qa[k] = {str(d): n for d, n in qa[k].items()}
-    assert set(qa["number_of_reviews"]) == set(snaps), "'qa.number_of_reviews' phải có đúng các snapshot"
-    assert set(qa["missing_price"]) <= set(snaps), "'qa.missing_price' chứa snapshot không tồn tại"
-    return config
-
-def _path(config, key):
-    v = config.get(key)
-    assert isinstance(v, str) and v.strip(), f"Thiếu cấu hình '{key}'"
-    return ROOT / v  # v tuyệt đối thì ROOT / v = v
-
-def _dirs(config):
-    raw = _path(config, "raw_dir")
-    return raw / "phan_cong", _path(config, "processed_dir") / "flagged", raw
-
-def _validate_columns(data, required, path):
-    missing = required - set(data.columns)
-    assert not missing, f"{path} thiếu các cột: {sorted(missing)}"
-
-def download_sheet(name, gid, sheet_id, out_dir):
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-
-    def write(tmp):
-        r = requests.get(url, stream=True, timeout=60)
-        r.raise_for_status()
-        n = 0
-        with gzip.open(tmp, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1024 * 1024):
-                f.write(chunk)
-                n += len(chunk)
-        assert n > 0, f"Google Sheets trả về dữ liệu rỗng: {name}"
-
-    _atomic(out_dir / f"{name}.csv.gz", write)
-
-def _load_assignments(config, d):
-    print("Đang phân công nhiệm vụ!")
-    qa = config["qa"]
-    for n in SHEETS:
-        if not (d / f"{n}.csv.gz").is_file():
-            download_sheet(n, qa["gid"][n], qa["sheet_id"], d)
-    listing, review = _read_csv(d / "listing.csv.gz"), _read_csv(d / "review.csv.gz")
-    _validate_columns(listing, {"listing_id", "analysis_area"}, "listing.csv.gz")
-    _validate_columns(review, {"review_id", "Mẫu LLM", "Nhãn tay"}, "review.csv.gz")
-    for col, val in qa["key_col"].items():
-        _validate_columns(listing, {col}, "listing.csv.gz")
-        _validate_columns(review, {col}, "review.csv.gz")
-        listing = listing.loc[listing[col].astype(str).str.strip().eq(str(val).strip())].copy()
-        review = review.loc[review[col].astype(str).str.strip().eq(str(val).strip())].copy()
-    for c in ("listing_id", "analysis_area"):
-        listing[c] = listing[c].str.strip()
-    review["review_id"] = review["review_id"].str.strip()
-    for c in ("Mẫu LLM", "Nhãn tay"):
-        review[c] = review[c].str.strip().str.lower()
-    listing, review = listing.loc[listing["listing_id"].ne("")], review.loc[review["review_id"].ne("")]
-    assert not (listing.empty or review.empty), "Không tìm thấy phân công hợp lệ theo qa.key_col"
-    assert listing["listing_id"].nunique() == len(listing), "Phân công listings có listing_id bị trùng"
-    assert review["review_id"].nunique() == len(review), "Phân công reviews có review_id bị trùng"
-    assert len(listing) == sum(qa["room_types"].values()), "Số listing phân công khác tổng qa.room_types"
-    llm, manual = review["Mẫu LLM"].eq("x"), review["Nhãn tay"].eq("x")
-    assert llm[manual].all(), "Toàn bộ review có nhãn tay phải thuộc mẫu LLM"
-    # kiểm tra số lượng review/mẫu LLM/nhãn tay nếu YAML khai báo qa.reviews / qa.llm_sample / qa.manual_sample
-    for k, n in {"reviews": len(review), "llm_sample": llm.sum(), "manual_sample": manual.sum()}.items():
-        assert qa.get(k, n) == n, f"Phân công có {n} {k}, cấu hình yêu cầu {qa[k]}"
-    return listing, review
-
-def _filter_ids(src, out, ids, label, areas=None):
-    df = _read_csv(src)
-    _validate_columns(df, {"id"}, src)
-    df["id"] = df["id"].str.strip()
-    df = df.loc[df["id"].isin(ids)].copy()
-    assert set(df["id"]) == ids and len(df) == len(ids), f"{src} không khớp đúng {len(ids)} {label} được phân công"
-    if areas is not None:
-        df["analysis_area"] = df["id"].map(areas)
-    _write_csv(df, out)
-
-def _filter_calendar(src, out, ids):
-    cols, expected = ["listing_id", "date", "available"], len(ids) * CAL_DAYS
-    _validate_columns(pd.read_csv(src, compression="gzip", nrows=0), set(cols), src)
-
-    def write(tmp):
-        n = 0
-        with gzip.open(tmp, "wt", encoding="utf-8", newline="") as f:
-            for c in pd.read_csv(src, dtype=str, keep_default_na=False, compression="gzip", chunksize=100_000, usecols=cols):
-                c["listing_id"] = c["listing_id"].str.strip()
-                c = c.loc[c["listing_id"].isin(ids)]
-                if not c.empty:
-                    c.to_csv(f, index=False, header=n == 0)
-                    n += len(c)
-        assert n > 0, f"Không tìm thấy dữ liệu phù hợp để ghi: {out}"
-        assert n == expected, f"{out} có {n} dòng, cần {expected}"
-
-    _atomic(out, write)
-
-def phan_cong(config, la, ra):
-    adir, _, raw = _dirs(config)
-    lids, rids = set(la["listing_id"]), set(ra["review_id"])
-    areas = la.set_index("listing_id")["analysis_area"]
-    for s in _snapshots(config):
-        src, out = raw / s, adir / s
-        _filter_ids(src / "listings.csv.gz", out / "listings.csv.gz", lids, "listing", areas)
-        _filter_calendar(src / "calendar.csv.gz", out / "calendar.csv.gz", lids)
-        _filter_ids(src / "reviews.csv.gz", out / "reviews.csv.gz", rids, "review")
 
 def _missing(s):
     return s.isna() | s.astype("string").str.strip().str.lower().isin(["", "none", "null", "nan"])
 
+
 def _num(s, pat=r"[$,]", rep=""):
     return pd.to_numeric(s.astype("string").str.replace(pat, rep, regex=True).str.strip(), errors="coerce")
+
 
 def _invalid_price(s):
     price = _num(s)
     return ~_missing(s) & (price.isna() | price.lt(0))
+
 
 def _flag(df, keys, rules):
     f = df[keys].astype(str)
@@ -193,13 +85,11 @@ def _flag(df, keys, rules):
         f[name] = pd.Series(v, index=f.index).fillna(False).astype(bool)
     return f
 
-def _read_area_bounds(config):
-    path = _dirs(config)[0] / "area.csv.gz"
-    a = _read_csv(path)
-    _validate_columns(a, {"Thành phố", "analysis_area", *AREA_COLS}, path)
-    city = str(config["city"]).strip()
-    a = a.loc[a["Thành phố"].str.strip().eq(city)].copy()
-    assert not a.empty, f"Không tìm thấy khu vực của thành phố {config['city']}"
+
+def parse_area_bounds(area: pd.DataFrame, city: str) -> pd.DataFrame:
+    """Bảng tọa độ min-max của từng analysis_area thuộc thành phố."""
+    a = area.loc[area["Thành phố"].str.strip().eq(str(city).strip())].copy()
+    assert not a.empty, f"Không tìm thấy khu vực của thành phố {city}"
     a["analysis_area"] = a["analysis_area"].str.strip()
     assert not a["analysis_area"].eq("").any(), "Sheet area có analysis_area bị thiếu"
     assert not a["analysis_area"].duplicated().any(), "Sheet area có analysis_area bị trùng"
@@ -209,6 +99,7 @@ def _read_area_bounds(config):
     assert not (a["lon_min"].gt(a["lon_max"]) | a["lat_min"].gt(a["lat_max"])).any(), "Tọa độ min-max của area không hợp lệ"
     return a.set_index("analysis_area")
 
+
 def _invalid_area(L, bounds):
     area = L["analysis_area"].str.strip()
     lat, lon = _num(L["latitude"], ",", "."), _num(L["longitude"], ",", ".")
@@ -216,51 +107,55 @@ def _invalid_area(L, bounds):
     bad = lat.isna() | lon.isna() | pd.concat(b.values(), axis=1).isna().any(axis=1)
     return bad | lat.lt(b["lat_min"]) | lat.gt(b["lat_max"]) | lon.lt(b["lon_min"]) | lon.gt(b["lon_max"])
 
-def _self_check(qa, s, L, bounds):
-    """Tự kiểm tra sau khi lọc (mục 3 của task.md); ngưỡng lấy từ qa trong YAML."""
+
+def self_check(qa: dict, snapshot: str, listings: pd.DataFrame, bounds: pd.DataFrame) -> None:
+    """Đối chiếu dữ liệu đã lọc với số liệu kỳ vọng khai trong cấu hình qa."""
+    s, L = snapshot, listings
     rt = L["room_type"].str.strip().value_counts().to_dict()
     assert rt == qa["room_types"], f"{s}: room_type {rt} khác cấu hình {qa['room_types']}"
-    zero = int(_num(L["number_of_reviews"]).eq(0).sum())
-    assert zero == qa["number_of_reviews"][s], f"{s}: có {zero} listing number_of_reviews = 0, cần {qa['number_of_reviews'][s]}"
-    if s in qa["missing_price"]:
+    if s in qa.get("number_of_reviews", {}):
+        zero = int(_num(L["number_of_reviews"]).eq(0).sum())
+        assert zero == qa["number_of_reviews"][s], f"{s}: có {zero} listing number_of_reviews = 0, cần {qa['number_of_reviews'][s]}"
+    if s in qa.get("missing_price", {}):
         n = int(_missing(L["price"]).sum())
         assert n == qa["missing_price"][s], f"{s}: có {n} listing thiếu price, cần {qa['missing_price'][s]}"
     c = L["analysis_area"].str.strip().value_counts()
     assert set(c.index) == set(bounds.index) and c.between(qa["area_min"], qa["area_max"]).all(), \
         f"{s}: vùng không khớp sheet area hoặc số listing/vùng ngoài [{qa['area_min']}, {qa['area_max']}]: {c.to_dict()}"
 
-def _build_flag_frames(config):
-    adir, qa, snaps = _dirs(config)[0], config["qa"], _snapshots(config)
-    inputs = {}
-    for s in snaps:
-        inputs[s] = {}
-        for t, keys in TABLES.items():
-            p = adir / s / f"{t}.csv.gz"
-            inputs[s][t] = d = _read_csv(p)
-            _validate_columns(d, REQUIRED[t] | set(keys), p)
-    bounds = _read_area_bounds(config)
-    ids = pd.concat([t["reviews"]["id"].drop_duplicates() for t in inputs.values()])
+
+def run_qa(data: dict, bounds: pd.DataFrame, qa: dict, cal_days: int, log=lambda msg: None) -> dict:
+    """Gắn cờ toàn bộ dữ liệu.
+
+    data: {snapshot: {'listings', 'calendar', 'reviews': DataFrame}} (cột kiểu chuỗi).
+    Trả về {(snapshot, table): DataFrame cờ} gồm cột khóa + một cột bool mỗi quy tắc.
+    """
+    snaps = list(data)
+    ids = pd.concat([t["reviews"]["id"].drop_duplicates() for t in data.values()])
     review_cnt = ids[ids.str.strip().ne("")].value_counts()
 
     frames = {}
-    for s, t in inputs.items():
-        print(f"Đang gắn cờ mốc {s}!")
+    for s, t in data.items():
+        log(f"Đang gắn cờ mốc {s}!")
         L, C, R = t["listings"], t["calendar"], t["reviews"]
-        _self_check(qa, s, L, bounds)
+        self_check(qa, s, L, bounds)
         use_price = s == max(snaps)  # chỉ dùng price ở mốc cuối
         price = _num(L["price"])
         room = L["room_type"].astype("string").str.strip()
         nrev = L["number_of_reviews"].astype("string").str.strip()
+        nrev_ltm = L["number_of_reviews_ltm"].astype("string").str.strip()
         has_info = pd.concat([~_missing(L[c]) for c in ["last_review", *L.filter(regex="^review_scores_").columns]], axis=1).any(axis=1)
         # không có giá hợp lệ: (0, 0) vẫn cho outlier = False vì mọi phép so sánh với NA đều bị fillna(False)
-        q1, q3 = price.dropna().quantile([0.25, 0.75]) if price.notna().any() else (0, 0)
+        valid_price = price[price.notna() & price.ge(0)]
+        q1, q3 = valid_price.quantile([0.25, 0.75]) if not valid_price.empty else (0, 0)
         iqr = q3 - q1
         frames[s, "listings"] = _flag(L, ["id"], {
             "missing_neigh_cleansed": _missing(L["neighbourhood_cleansed"]),
             "missing_room_type": _missing(L["room_type"]),
-            "missing_number_of_reviews": _missing(L["number_of_reviews"]),
+            "missing_number_of_reviews": _missing(L["number_of_reviews"]) | _missing(L["number_of_reviews_ltm"]),
             "missing_price": _missing(L["price"]) & use_price,
-            "invalid_reviews_num": ~_missing(L["number_of_reviews"]) & ~nrev.str.fullmatch(r"\d+", na=False),
+            "invalid_reviews_num": (~_missing(L["number_of_reviews"]) & ~nrev.str.fullmatch(r"\d+", na=False))
+                                   | (~_missing(L["number_of_reviews_ltm"]) & ~nrev_ltm.str.fullmatch(r"\d+", na=False)),
             "invalid_room_type": ~_missing(L["room_type"]) & ~room.isin(ROOM_TYPES),
             "invalid_price": _invalid_price(L["price"]) & use_price,
             "invalid_area": _invalid_area(L, bounds),
@@ -274,7 +169,7 @@ def _build_flag_frames(config):
             "invalid_calendar_date": ~_missing(C["date"]) & pd.to_datetime(C["date"], errors="coerce").isna(),
             "invalid_calendar_available": ~_missing(C["available"]) & ~av.isin({"t", "f"}),
             "dup_cal_key": C.duplicated(subset=["listing_id", "date"], keep=False),
-            "calendar_days_per_listing_mismatch": g["date"].transform("size").ne(CAL_DAYS) | g["date"].transform("nunique").ne(CAL_DAYS),
+            "calendar_days_per_listing_mismatch": g["date"].transform("size").ne(cal_days) | g["date"].transform("nunique").ne(cal_days),
         })
         frames[s, "reviews"] = _flag(R, ["id"], {
             "missing_review_date": _missing(R["date"]),
@@ -285,22 +180,54 @@ def _build_flag_frames(config):
         })
     return frames
 
-def run_qa(config):
-    flagged_dir = _dirs(config)[1]
-    for (s, t), flags in _build_flag_frames(config).items():
-        _write_csv(flags, flagged_dir / s / f"{t}_flags.csv.gz")
 
-def main():
-    try:
-        config = _read_config()
-        la, ra = _load_assignments(config, _dirs(config)[0])
-        phan_cong(config, la, ra)
-        run_qa(config)
-        print("Đã xong!")
-        return 0
-    except Exception as error:
-        print(f"Lỗi: {type(error).__name__}: {error}")
-        return 1
+def _fmt_kpis(kpi_dict: dict, kids: list[str], currency: str) -> str:
+    """Định dạng ngắn gọn các KPI chịu tác động của một quy tắc QA."""
+    if not kids:
+        return ""
+    parts = []
+    for kid in kids:
+        val, _, _, den = kpi_dict.get(kid, (None, "", None, None))
+        if val is None or pd.isna(val):
+            parts.append(f"{kid}=chưa có")
+        elif kid == "KPI1":
+            parts.append(f"{kid}={val:,.0f}")
+        elif kid in ("KPI2", "KPI3", "KPI5", "KPI7"):
+            parts.append(f"{kid}={val:.2f}%")
+        elif kid == "KPI4":
+            parts.append(f"{kid}={val:.2f}")
+        elif kid == "KPI6":
+            parts.append(f"{kid}={val:,.2f} {currency}/đêm (n={den:,})")
+        elif kid == "KPI8":
+            parts.append(f"{kid}={val:.4f}")
+    return "; ".join(parts)
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+
+def build_qa_report(flags: dict, kpi_before: dict, kpi_after: dict, currency: str = "CLP") -> pd.DataFrame:
+    """Tổng hợp tác động QA theo từng mốc chụp và quy tắc (số dòng gắn cờ; KPI trước và sau)."""
+    snapshots = list(dict.fromkeys(s for s, _ in flags))
+    rows = []
+    for s in snapshots:
+        before_s = kpi_before.get(s, {})
+        after_s = kpi_after.get(s, {})
+        for name, condition, reason, action in RULES:
+            table, affected = RULE_META[name]
+            df = flags[s, table]
+            total_rows = len(df)
+            flagged_rows = int(df[name].sum()) if name in df.columns else 0
+            flagged_pct = round(flagged_rows / total_rows * 100, 2) if total_rows else 0.0
+            rows.append({
+                "snapshot": s,
+                "table": table,
+                "rule": name,
+                "condition": condition,
+                "reason": reason,
+                "action": action,
+                "total_rows": total_rows,
+                "flagged_rows": flagged_rows,
+                "flagged_pct": flagged_pct,
+                "affected_kpis": ", ".join(affected),
+                "kpi_before_qa": _fmt_kpis(before_s, affected, currency),
+                "kpi_after_qa": _fmt_kpis(after_s, affected, currency),
+            })
+    return pd.DataFrame(rows)

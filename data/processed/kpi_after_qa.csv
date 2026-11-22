@@ -1,8 +1,9 @@
-﻿number,kpi,formula,unit,value,group,numerator,denominator,scope
-1,Số lượng listing theo khu vực,Đếm listing theo neighbourhood_cleansed,Phòng,387.0,Santiago,387.0,1000,2026-06-29
-2,Tỷ lệ loại phòng,Số listing từng room_type / tổng listing × 100%,%,87.5,Entire home/apt,875.0,1000,2026-06-29
-3,Tỷ lệ listing chưa có review,Listing có number_of_reviews = 0 / tổng listing × 100%,%,2.5,,25.0,1000,2026-06-29
-4,Số review trung bình trên listing,Tổng number_of_reviews / tổng listing,Review/listing,81.96,,81960.0,1000,2026-06-29
-5,Tỷ lệ ngày có thể đặt phòng,Số ngày available = 't' / tổng ngày hợp lệ × 100%,%,74.07,,270371.0,365000,2026-06-29
-6,Tỷ lệ review tích cực theo LLM,Review được LLM phân loại tích cực / tổng review có nhãn hợp lệ × 100%,%,88.2,,882.0,1000,mẫu review đã chạy LLM
-7,F1-score của LLM,So sánh nhãn LLM với nhãn thủ công,Điểm F1 (0-1),0.7185,,,97,mẫu review đã chạy LLM
+﻿number,kpi,target,formula,unit,value,group,numerator,denominator,scope
+1,Số lượng listing theo khu vực,Xác định địa bàn tập trung nguồn cung lưu trú để phân bổ nguồn lực quản lý đô thị và hạ tầng,Đếm listing theo neighbourhood_cleansed,Phòng,387.0,Santiago,387.0,1000,2026-06-29
+2,Tỷ lệ nhà nguyên căn tại khu vực trọng điểm,Đo mức độ thương mại hóa nhà ở dân cư tại khu vực tập trung nhiều listing nhất,Số listing Entire home/apt / tổng listing tại khu vực lớn nhất × 100%,%,90.44,Santiago (Entire home/apt),350.0,387,2026-06-29
+3,Tỷ lệ listing không có review trong 12 tháng qua,Nhận diện tỷ lệ listing ngủ đông không phát sinh đánh giá trong 1 năm gần nhất,Listing có number_of_reviews_ltm = 0 / tổng listing × 100%,%,13.2,,132.0,1000,2026-06-29
+4,Số review trung bình trên listing,Theo dõi quy mô thu hút du khách tích lũy và mức độ tương tác qua các quý,Tổng number_of_reviews / tổng listing,Review/listing,81.96,,81960.0,1000,2026-06-29
+5,Tỷ lệ ngày có thể đặt phòng,Đo độ mở của nguồn cung phòng trong 365 ngày tới và biến động mùa vụ,Số ngày available = 't' / tổng ngày hợp lệ × 100%,%,74.07,,270371.0,365000,2026-06-29
+6,Giá thuê phòng trung bình một đêm (mốc cuối),Nắm mặt bằng giá lưu trú thực tế để xây dựng khung thuế du lịch và đánh giá khả năng chi trả,Tổng price hợp lệ / số listing có giá hợp lệ ở mốc cuối,CLP/đêm,66943.72,,59713793.86,892,2026-06-29
+7,Tỷ lệ review tích cực theo LLM,Đánh giá mức độ hài lòng tổng thể của du khách đối với chất lượng lưu trú,Review được LLM phân loại tích cực / tổng review có nhãn hợp lệ × 100%,%,87.8,,878.0,1000,mẫu review đã chạy LLM
+8,F1-score của LLM,Kiểm định độ tin cậy của mô hình LLM đối chiếu với nhãn thủ công,So sánh nhãn LLM với nhãn thủ công,Điểm F1 (0-1),0.8186,,,100,mẫu review đã chạy LLM

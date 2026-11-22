@@ -27,7 +27,3 @@ __pycache__/
 
 #Test files
 test/
-
-data-errors-report.md
-project_guide.md
-task.md
